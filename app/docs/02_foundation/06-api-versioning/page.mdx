@@ -1,25 +1,559 @@
-# Basic API Versioning (URL-based)
+# API Versioning
 
-A simple way to version your API is by including the version in the URL.
+API versioning is essential for maintaining backward compatibility while evolving your API. It allows you to introduce new features, fix bugs, and improve performance without breaking existing client applications. Proper versioning strategies ensure your API can grow and adapt while maintaining trust with your users.
+
+## Why API Versioning Matters
+
+- **Backward Compatibility**: Existing clients continue to work when you add new features
+- **Controlled Evolution**: Roll out changes gradually without forcing immediate updates
+- **Client Flexibility**: Different clients can adopt new versions at their own pace
+- **Debugging**: Easier to isolate issues to specific API versions
+- **Documentation**: Clear separation of features by version
+
+## URL-Based Versioning
+
+The most straightforward approach is including the version in the URL path.
 
 ```python
-from fastapi import FastAPI, APIRouter
+from fastapi import FastAPI, APIRouter, HTTPException
+from pydantic import BaseModel
+from typing import List, Optional
+
+app = FastAPI(title="Versioned API Example")
+
+# Version 1 Models
+class UserV1(BaseModel):
+    id: int
+    name: str
+    email: str
+
+# Version 2 Models (extended)
+class UserV2(BaseModel):
+    id: int
+    name: str
+    email: str
+    created_at: str
+    profile_picture: Optional[str] = None
+
+# Version 1 Router
+router_v1 = APIRouter(prefix="/api/v1", tags=["v1"])
+
+@router_v1.get("/users/{user_id}", response_model=UserV1)
+async def get_user_v1(user_id: int):
+    """Get user - V1 with basic fields"""
+    return UserV1(
+        id=user_id,
+        name="John Doe",
+        email="john@example.com"
+    )
+
+@router_v1.post("/users", response_model=UserV1)
+async def create_user_v1(user: UserV1):
+    """Create user - V1 basic creation"""
+    return user
+
+# Version 2 Router
+router_v2 = APIRouter(prefix="/api/v2", tags=["v2"])
+
+@router_v2.get("/users/{user_id}", response_model=UserV2)
+async def get_user_v2(user_id: int):
+    """Get user - V2 with additional metadata"""
+    return UserV2(
+        id=user_id,
+        name="John Doe",
+        email="john@example.com",
+        created_at="2024-01-15T10:30:00Z",
+        profile_picture="https://example.com/avatar.jpg"
+    )
+
+@router_v2.post("/users", response_model=UserV2)
+async def create_user_v2(user: UserV2):
+    """Create user - V2 with extended fields"""
+    return user
+
+# Include both versions
+app.include_router(router_v1)
+app.include_router(router_v2)
+```
+
+**Usage Examples:**
+- V1: `GET /api/v1/users/123`
+- V2: `GET /api/v2/users/123`
+
+## Header-Based Versioning
+
+Use HTTP headers to specify the API version, keeping URLs clean.
+
+```python
+from fastapi import FastAPI, Header, HTTPException, Depends
+from typing import Annotated
 
 app = FastAPI()
 
-router_v1 = APIRouter(prefix="/api/v1")
+def get_api_version(
+    accept_version: Annotated[str, Header(alias="Accept-Version")] = "v1"
+) -> str:
+    """Extract and validate API version from headers"""
+    if accept_version not in ["v1", "v2"]:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unsupported API version: {accept_version}"
+        )
+    return accept_version
 
-@router_v1.get("/greet")
-async def greet_v1():
-    return {"message": "Hello from API v1"}
+@app.get("/users/{user_id}")
+async def get_user(
+    user_id: int,
+    version: Annotated[str, Depends(get_api_version)]
+):
+    """Get user with version-specific response"""
+    base_user = {
+        "id": user_id,
+        "name": "John Doe",
+        "email": "john@example.com"
+    }
+    
+    if version == "v1":
+        return base_user
+    elif version == "v2":
+        return {
+            **base_user,
+            "created_at": "2024-01-15T10:30:00Z",
+            "profile_picture": "https://example.com/avatar.jpg"
+        }
+
+# Client usage:
+# curl -H "Accept-Version: v2" http://localhost:8000/users/123
+```
+
+## Query Parameter Versioning
+
+Simple versioning through query parameters.
+
+```python
+from fastapi import FastAPI, Query
+from typing import Annotated
+
+app = FastAPI()
+
+@app.get("/users/{user_id}")
+async def get_user(
+    user_id: int,
+    version: Annotated[str, Query()] = "v1"
+):
+    """Get user with version specified as query parameter"""
+    if version not in ["v1", "v2"]:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unsupported version: {version}"
+        )
+    
+    base_user = {
+        "id": user_id,
+        "name": "John Doe",
+        "email": "john@example.com"
+    }
+    
+    if version == "v2":
+        base_user.update({
+            "created_at": "2024-01-15T10:30:00Z",
+            "last_login": "2024-01-20T14:22:00Z"
+        })
+    
+    return base_user
+
+# Usage: GET /users/123?version=v2
+```
+
+## Content Negotiation Versioning
+
+Use the `Accept` header for sophisticated version negotiation.
+
+```python
+from fastapi import FastAPI, Request, HTTPException
+import re
+
+app = FastAPI()
+
+def parse_accept_header(request: Request) -> str:
+    """Parse Accept header for version information"""
+    accept_header = request.headers.get("accept", "")
+    
+    # Look for application/vnd.myapi.v2+json
+    version_pattern = r'application/vnd\.myapi\.v(\d+)\+json'
+    match = re.search(version_pattern, accept_header)
+    
+    if match:
+        return f"v{match.group(1)}"
+    
+    # Default to v1 if no specific version requested
+    return "v1"
+
+@app.get("/users/{user_id}")
+async def get_user(user_id: int, request: Request):
+    """Get user with content negotiation versioning"""
+    version = parse_accept_header(request)
+    
+    if version == "v1":
+        return {
+            "id": user_id,
+            "name": "John Doe",
+            "email": "john@example.com"
+        }
+    elif version == "v2":
+        return {
+            "id": user_id,
+            "name": "John Doe",
+            "email": "john@example.com",
+            "created_at": "2024-01-15T10:30:00Z",
+            "metadata": {
+                "last_login": "2024-01-20T14:22:00Z",
+                "login_count": 45
+            }
+        }
+    else:
+        raise HTTPException(
+            status_code=406,
+            detail=f"API version {version} not supported"
+        )
+
+# Client usage:
+# curl -H "Accept: application/vnd.myapi.v2+json" http://localhost:8000/users/123
+```
+
+## Advanced Versioning Patterns
+
+### Version-Specific Dependencies
+
+```python
+from fastapi import FastAPI, Depends, HTTPException
+from typing import Annotated, Protocol
+
+app = FastAPI()
+
+class UserService(Protocol):
+    def get_user(self, user_id: int) -> dict: ...
+
+class UserServiceV1:
+    def get_user(self, user_id: int) -> dict:
+        return {
+            "id": user_id,
+            "name": "John Doe",
+            "email": "john@example.com"
+        }
+
+class UserServiceV2:
+    def get_user(self, user_id: int) -> dict:
+        return {
+            "id": user_id,
+            "name": "John Doe",
+            "email": "john@example.com",
+            "created_at": "2024-01-15T10:30:00Z",
+            "preferences": {
+                "theme": "dark",
+                "notifications": True
+            }
+        }
+
+def get_user_service(version: str = "v1") -> UserService:
+    """Factory function for version-specific services"""
+    services = {
+        "v1": UserServiceV1(),
+        "v2": UserServiceV2()
+    }
+    
+    if version not in services:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unsupported version: {version}"
+        )
+    
+    return services[version]
+
+# URL-based routing with service injection
+router_v1 = APIRouter(prefix="/api/v1")
+router_v2 = APIRouter(prefix="/api/v2")
+
+@router_v1.get("/users/{user_id}")
+async def get_user_v1(
+    user_id: int,
+    service: Annotated[UserService, Depends(lambda: get_user_service("v1"))]
+):
+    return service.get_user(user_id)
+
+@router_v2.get("/users/{user_id}")
+async def get_user_v2(
+    user_id: int,  
+    service: Annotated[UserService, Depends(lambda: get_user_service("v2"))]
+):
+    return service.get_user(user_id)
 
 app.include_router(router_v1)
-
-# You could define a router_v2 for a future version
-# router_v2 = APIRouter(prefix="/api/v2")
-# @router_v2.get("/greet")
-# async def greet_v2():
-#     return {"message": "Hello from API v2 with new features!"}
-# app.include_router(router_v2)
+app.include_router(router_v2)
 ```
-Clients would then access `/api/v1/greet`.
+
+### Version Middleware
+
+```python
+from fastapi import FastAPI, Request, HTTPException
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.responses import JSONResponse
+
+class VersionMiddleware(BaseHTTPMiddleware):
+    def __init__(self, app, supported_versions: List[str], default_version: str):
+        super().__init__(app)
+        self.supported_versions = supported_versions
+        self.default_version = default_version
+    
+    async def dispatch(self, request: Request, call_next):
+        # Extract version from various sources
+        version = self.extract_version(request)
+        
+        # Validate version
+        if version not in self.supported_versions:
+            return JSONResponse(
+                status_code=400,
+                content={
+                    "error": f"Unsupported API version: {version}",
+                    "supported_versions": self.supported_versions
+                }
+            )
+        
+        # Add version to request state
+        request.state.api_version = version
+        
+        response = await call_next(request)
+        
+        # Add version info to response headers
+        response.headers["API-Version"] = version
+        
+        return response
+    
+    def extract_version(self, request: Request) -> str:
+        # Check Accept-Version header
+        if "Accept-Version" in request.headers:
+            return request.headers["Accept-Version"]
+        
+        # Check query parameter
+        if "version" in request.query_params:
+            return request.query_params["version"]
+        
+        # Check URL path
+        path_parts = request.url.path.split("/")
+        for part in path_parts:
+            if part.startswith("v") and part[1:].isdigit():
+                return part
+        
+        return self.default_version
+
+app = FastAPI()
+
+# Add version middleware
+app.add_middleware(
+    VersionMiddleware,
+    supported_versions=["v1", "v2"],
+    default_version="v1"
+)
+
+@app.get("/users/{user_id}")
+async def get_user(user_id: int, request: Request):
+    version = request.state.api_version
+    
+    base_response = {
+        "id": user_id,
+        "name": "John Doe",
+        "email": "john@example.com"
+    }
+    
+    if version == "v2":
+        base_response.update({
+            "created_at": "2024-01-15T10:30:00Z",
+            "updated_at": "2024-01-20T14:22:00Z"
+        })
+    
+    return base_response
+```
+
+## Version Deprecation Strategy
+
+```python
+from fastapi import FastAPI, HTTPException, Request
+from datetime import datetime, timedelta
+import warnings
+
+app = FastAPI()
+
+# Version configuration
+VERSION_CONFIG = {
+    "v1": {
+        "deprecated": True,
+        "sunset_date": "2024-06-01",
+        "replacement": "v2"
+    },
+    "v2": {
+        "deprecated": False,
+        "sunset_date": None,
+        "replacement": None
+    }
+}
+
+def check_version_status(version: str, request: Request):
+    """Check version deprecation status and add appropriate headers"""
+    config = VERSION_CONFIG.get(version)
+    
+    if not config:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unknown API version: {version}"
+        )
+    
+    headers = {}
+    
+    if config["deprecated"]:
+        headers["Sunset"] = config["sunset_date"]
+        headers["Deprecation"] = "true"
+        
+        if config["replacement"]:
+            headers["Link"] = f'</api/{config["replacement"]}>; rel="successor-version"'
+        
+        # Log deprecation usage for monitoring
+        warnings.warn(
+            f"API version {version} is deprecated. "
+            f"Sunset date: {config['sunset_date']}. "
+            f"Client: {request.client.host}",
+            DeprecationWarning
+        )
+    
+    return headers
+
+@app.get("/api/{version}/users/{user_id}")
+async def get_user_with_deprecation(version: str, user_id: int, request: Request):
+    """Get user with deprecation warnings"""
+    
+    # Check version status
+    deprecation_headers = check_version_status(version, request)
+    
+    # Your existing logic here
+    response_data = {
+        "id": user_id,
+        "name": "John Doe",
+        "email": "john@example.com"
+    }
+    
+    if version == "v2":
+        response_data.update({
+            "created_at": "2024-01-15T10:30:00Z"
+        })
+    
+    return JSONResponse(
+        content=response_data,
+        headers=deprecation_headers
+    )
+```
+
+## Best Practices
+
+### ✅ Do's
+
+1. **Choose One Strategy**: Pick one versioning approach and stick to it consistently
+2. **Document Migration Paths**: Provide clear upgrade guides between versions
+3. **Use Semantic Versioning**: Follow semantic versioning principles (v1.0, v1.1, v2.0)
+4. **Deprecation Warnings**: Give advance notice before removing old versions
+5. **Version-Specific Documentation**: Maintain separate docs for each version
+
+```python
+# Good: Clear version structure
+@app.get("/api/v1/users/{user_id}")
+async def get_user_v1(user_id: int):
+    return {"id": user_id, "basic": "data"}
+
+@app.get("/api/v2/users/{user_id}") 
+async def get_user_v2(user_id: int):
+    return {"id": user_id, "enhanced": "data", "metadata": {}}
+```
+
+### ❌ Don'ts
+
+1. **Don't Mix Strategies**: Avoid using multiple versioning approaches simultaneously
+2. **Don't Break Backward Compatibility**: Never change existing version behavior
+3. **Don't Version Everything**: Only version when you have breaking changes
+4. **Don't Keep Old Versions Forever**: Plan sunset dates for deprecated versions
+
+```python
+# Bad: Inconsistent versioning
+@app.get("/api/v1/users/{user_id}")  # URL-based
+async def get_user_v1(user_id: int, version: str = Header()):  # Also header-based
+
+# Bad: Breaking existing version
+@app.get("/api/v1/users/{user_id}")
+async def get_user_v1(user_id: int):
+    # Don't change this response structure!
+    return {"id": user_id, "data": "changed"}  # This breaks v1 contracts
+```
+
+## Migration Between Versions
+
+```python
+from fastapi import FastAPI, BackgroundTasks
+import asyncio
+
+app = FastAPI()
+
+class VersionMigrationService:
+    """Service to help clients migrate between API versions"""
+    
+    @staticmethod
+    def get_migration_guide(from_version: str, to_version: str) -> dict:
+        """Get migration instructions between versions"""
+        migrations = {
+            ("v1", "v2"): {
+                "breaking_changes": [
+                    "User creation now requires 'created_at' field",
+                    "Response includes additional 'metadata' object"
+                ],
+                "new_features": [
+                    "Profile picture support",
+                    "User preferences",
+                    "Last login tracking"
+                ],
+                "migration_steps": [
+                    "Update request models to include new optional fields",
+                    "Handle additional response fields in your client",
+                    "Test with new endpoints before switching"
+                ]
+            }
+        }
+        
+        key = (from_version, to_version)
+        return migrations.get(key, {"error": "Migration path not found"})
+
+@app.get("/api/migration-guide")
+async def get_migration_guide(from_version: str, to_version: str):
+    """Get migration guide between API versions"""
+    return VersionMigrationService.get_migration_guide(from_version, to_version)
+
+# Version compatibility checker
+@app.get("/api/version-check")
+async def check_version_compatibility(client_version: str):
+    """Check if client version is compatible"""
+    supported_versions = ["v1", "v2"]
+    deprecated_versions = ["v1"]
+    
+    return {
+        "client_version": client_version,
+        "is_supported": client_version in supported_versions,
+        "is_deprecated": client_version in deprecated_versions,
+        "recommended_version": "v2",
+        "migration_guide_url": f"/api/migration-guide?from_version={client_version}&to_version=v2"
+    }
+```
+
+## Try It Yourself
+
+1. **Implement URL-based versioning** for a simple blog API with posts and comments
+2. **Add header-based versioning** to an existing endpoint
+3. **Create a deprecation strategy** for transitioning from v1 to v2
+4. **Build version middleware** that automatically handles version detection
+5. **Design a migration guide** for a breaking change in your API
+
+Practice these patterns to master API versioning and ensure your APIs can evolve gracefully while maintaining excellent developer experience.
