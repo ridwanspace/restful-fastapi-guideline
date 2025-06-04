@@ -9,6 +9,7 @@ const config = {
   footer: {
     text: 'Nextra Docs Template',
   },
+  codeHighlight: true,
 }
 
 export default config
