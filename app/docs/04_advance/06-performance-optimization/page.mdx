@@ -1,0 +1,302 @@
+# ⚡ Performance & Optimization
+
+## 13. Performance & Optimization
+
+### Caching Strategies
+
+Implement comprehensive caching for improved performance:
+
+```python
+from fastapi import FastAPI, Depends, Response, Request, HTTPException
+from typing import Optional, Dict, Any
+import hashlib
+import json
+import time
+from datetime import datetime, timedelta
+import redis
+from functools import wraps
+
+# Redis connection (mock for example)
+class MockRedis:
+    def __init__(self):
+        self.data = {}
+    
+    def get(self, key: str) -> Optional[str]:
+        item = self.data.get(key)
+        if item and item['expires'] > time.time():
+            return item['value']
+        elif item:
+            del self.data[key]
+        return None
+    
+    def set(self, key: str, value: str, ex: int = 3600):
+        self.data[key] = {
+            'value': value,
+            'expires': time.time() + ex
+        }
+    
+    def delete(self, key: str):
+        self.data.pop(key, None)
+
+redis_client = MockRedis()
+
+def generate_cache_key(prefix: str, *args, **kwargs) -> str:
+    """Generate consistent cache key from parameters"""
+    key_data = f"{prefix}:{':'.join(map(str, args))}"
+    if kwargs:
+        sorted_kwargs = sorted(kwargs.items())
+        key_data += f":{':'.join(f'{k}={v}' for k, v in sorted_kwargs)}"
+    
+    # Hash long keys to avoid Redis key length limits
+    if len(key_data) > 200:
+        key_data = f"{prefix}:{hashlib.md5(key_data.encode()).hexdigest()}"
+    
+    return key_data
+
+def cache_response(
+    prefix: str,
+    ttl: int = 3600,
+    vary_on_user: bool = False,
+    vary_on_headers: List[str] = None
+):
+    """Decorator for caching API responses"""
+    def decorator(func):
+        @wraps(func)
+        async def wrapper(*args, **kwargs):
+            # Extract request and user info
+            request = kwargs.get('request') or next((arg for arg in args if isinstance(arg, Request)), None)
+            current_user = kwargs.get('current_user')
+            
+            # Build cache key
+            cache_key_parts = [prefix]
+            
+            # Add function arguments to cache key
+            for arg in args:
+                if not isinstance(arg, (Request, User)):
+                    cache_key_parts.append(str(arg))
+            
+            for key, value in kwargs.items():
+                if key not in ['request', 'current_user'] and not callable(value):
+                    cache_key_parts.append(f"{key}={value}")
+            
+            # Vary on user if required
+            if vary_on_user and current_user:
+                cache_key_parts.append(f"user={current_user.id}")
+            
+            # Vary on specific headers
+            if vary_on_headers and request:
+                for header in vary_on_headers:
+                    header_value = request.headers.get(header.lower())
+                    if header_value:
+                        cache_key_parts.append(f"header_{header}={header_value}")
+            
+            cache_key = generate_cache_key(*cache_key_parts)
+            
+            # Try to get from cache
+            cached_response = redis_client.get(cache_key)
+            if cached_response:
+                try:
+                    cached_data = json.loads(cached_response)
+                    return cached_data
+                except json.JSONDecodeError:
+                    pass
+            
+            # Execute function and cache result
+            result = await func(*args, **kwargs)
+            
+            # Cache the result
+            try:
+                redis_client.set(cache_key, json.dumps(result, default=str), ex=ttl)
+            except (TypeError, ValueError) as e:
+                # Handle non-serializable responses
+                logger.warning(f"Failed to cache response: {e}")
+            
+            return result
+        
+        return wrapper
+    return decorator
+
+# ETag support for conditional requests
+def generate_etag(data: Any) -> str:
+    """Generate ETag from response data"""
+    content = json.dumps(data, sort_keys=True, default=str)
+    return hashlib.md5(content.encode()).hexdigest()
+
+def handle_conditional_request(request: Request, response_data: Any) -> Optional[Response]:
+    """Handle If-None-Match and If-Modified-Since headers"""
+    
+    # Generate ETag for current data
+    current_etag = generate_etag(response_data)
+    
+    # Check If-None-Match header
+    if_none_match = request.headers.get("if-none-match")
+    if if_none_match and if_none_match == f'"{current_etag}"':
+        return Response(status_code=304, headers={"ETag": f'"{current_etag}"'})
+    
+    return None
+
+@app.get("/users/{user_id}/cached")
+@cache_response("user_detail", ttl=1800, vary_on_user=True)
+async def get_user_cached(
+    user_id: int,
+    request: Request,
+    current_user: User = Depends(get_current_user_flexible)
+):
+    """Cached user endpoint with ETag support"""
+    
+    # Simulate database query
+    user_data = {
+        "id": user_id,
+        "username": f"user_{user_id}",
+        "email": f"user_{user_id}@example.com",
+        "last_updated": datetime.utcnow().isoformat() + "Z"
+    }
+    
+    # Check conditional request
+    conditional_response = handle_conditional_request(request, user_data)
+    if conditional_response:
+        return conditional_response
+    
+    # Add caching headers
+    etag = generate_etag(user_data)
+    cache_control = "private, max-age=1800"  # 30 minutes
+    
+    return JSONResponse(
+        content=user_data,
+        headers={
+            "ETag": f'"{etag}"',
+            "Cache-Control": cache_control,
+            "Last-Modified": datetime.utcnow().strftime("%a, %d %b %Y %H:%M:%S GMT")
+        }
+    )
+
+# Cache invalidation
+class CacheManager:
+    def __init__(self, redis_client):
+        self.redis = redis_client
+    
+    def invalidate_pattern(self, pattern: str):
+        """Invalidate cache keys matching pattern"""
+        # In real Redis, use SCAN with pattern matching
+        keys_to_delete = []
+        for key in self.redis.data.keys():
+            if pattern in key:
+                keys_to_delete.append(key)
+        
+        for key in keys_to_delete:
+            self.redis.delete(key)
+    
+    def invalidate_user_cache(self, user_id: int):
+        """Invalidate all cache entries for a specific user"""
+        self.invalidate_pattern(f"user={user_id}")
+        self.invalidate_pattern(f"user_detail:{user_id}")
+    
+    def invalidate_list_caches(self):
+        """Invalidate list/collection caches"""
+        patterns = ["users_list", "products_list", "orders_list"]
+        for pattern in patterns:
+            self.invalidate_pattern(pattern)
+
+cache_manager = CacheManager(redis_client)
+
+@app.put("/users/{user_id}")
+async def update_user(
+    user_id: int,
+    user_data: dict,
+    current_user: User = Depends(get_current_user_flexible)
+):
+    """Update user and invalidate related caches"""
+    
+    # Update user in database
+    # ... database update logic ...
+    
+    # Invalidate related caches
+    cache_manager.invalidate_user_cache(user_id)
+    cache_manager.invalidate_list_caches()
+    
+    return {"message": "User updated successfully", "user_id": user_id}
+
+# Response compression
+@app.middleware("http")
+async def compression_middleware(request: Request, call_next):
+    """Add response compression"""
+    response = await call_next(request)
+    
+    # Check if client accepts compression
+    accept_encoding = request.headers.get("accept-encoding", "")
+    
+    if "gzip" in accept_encoding and response.headers.get("content-type", "").startswith("application/json"):
+        # Add compression headers
+        response.headers["Content-Encoding"] = "gzip"
+        response.headers["Vary"] = "Accept-Encoding"
+    
+    return response
+
+# Database query optimization
+@app.get("/users/optimized")
+async def get_users_optimized(
+    page: int = Query(1, ge=1),
+    limit: int = Query(10, ge=1, le=100),
+    fields: Optional[str] = Query(None, description="Comma-separated fields to return"),
+    include_profile: bool = Query(False, description="Include user profile data")
+):
+    """Optimized user listing with field selection and optional joins"""
+    
+    # Field selection to reduce payload size
+    default_fields = ["id", "username", "email", "created_at"]
+    if fields:
+        requested_fields = [f.strip() for f in fields.split(",")]
+        # Validate requested fields
+        allowed_fields = default_fields + ["full_name", "last_login", "status"]
+        selected_fields = [f for f in requested_fields if f in allowed_fields]
+    else:
+        selected_fields = default_fields
+    
+    # Simulate optimized database query
+    base_query = f"SELECT {', '.join(selected_fields)} FROM users"
+    
+    if include_profile:
+        # Only join profile table if requested
+        base_query += " LEFT JOIN user_profiles ON users.id = user_profiles.user_id"
+        selected_fields.extend(["profile.bio", "profile.avatar_url"])
+    
+    # Pagination
+    offset = (page - 1) * limit
+    base_query += f" LIMIT {limit} OFFSET {offset}"
+    
+    # Mock response with only selected fields
+    users = []
+    for i in range(1, limit + 1):
+        user = {}
+        if "id" in selected_fields:
+            user["id"] = offset + i
+        if "username" in selected_fields:
+            user["username"] = f"user_{offset + i}"
+        if "email" in selected_fields:
+            user["email"] = f"user_{offset + i}@example.com"
+        if "created_at" in selected_fields:
+            user["created_at"] = "2024-01-01T00:00:00Z"
+        
+        if include_profile:
+            user["profile"] = {
+                "bio": f"Bio for user {offset + i}",
+                "avatar_url": f"/avatars/user_{offset + i}.jpg"
+            }
+        
+        users.append(user)
+    
+    return {
+        "data": users,
+        "optimization_info": {
+            "fields_selected": selected_fields,
+            "profile_included": include_profile,
+            "estimated_query": base_query,
+            "performance_notes": [
+                "Field selection reduces payload size",
+                "Optional joins prevent unnecessary data loading",
+                "Pagination limits memory usage"
+            ]
+        }
+    }
+
+```

@@ -1,0 +1,173 @@
+# 🔄 Sorting & Ordering
+
+## 10. Sorting & Ordering
+
+### Sort Parameter Design
+
+Implement flexible sorting with multiple fields and directions:
+
+```python
+from fastapi import FastAPI, Query, HTTPException
+from pydantic import BaseModel, validator
+from typing import List, Optional, Dict, Any, Tuple
+from enum import Enum
+import re
+
+class SortDirection(str, Enum):
+    asc = "asc"
+    desc = "desc"
+
+class SortField(BaseModel):
+    field: str
+    direction: SortDirection = SortDirection.asc
+
+class SortParams(BaseModel):
+    sort: Optional[str] = Field(
+        None,
+        description="Sort specification: field1:asc,field2:desc or +field1,-field2"
+    )
+    
+    @validator('sort')
+    def validate_sort_format(cls, v):
+        if not v:
+            return v
+        
+        # Validate sort format
+        # Supports: "field1:asc,field2:desc" or "+field1,-field2"
+        if not re.match(r'^[+\-]?\w+([:\-](asc|desc))?([,][+\-]?\w+([:\-](asc|desc))?)*', v):
+            raise ValueError('Invalid sort format')
+        return v
+```
+```python
+def parse_sort_string(sort_string: str, allowed_fields: set) -> List[SortField]:
+    """Parse sort string into structured sort fields"""
+    if not sort_string:
+        return []
+    
+    sort_fields = []
+    
+    # Split by comma for multiple sort fields
+    for sort_part in sort_string.split(','):
+        sort_part = sort_part.strip()
+        
+        if ':' in sort_part:
+            # Format: "field:direction"
+            field, direction = sort_part.split(':', 1)
+            direction = direction.lower()
+        elif sort_part.startswith('+'):
+            # Format: "+field" (ascending)
+            field = sort_part[1:]
+            direction = 'asc'
+        elif sort_part.startswith('-'):
+            # Format: "-field" (descending)
+            field = sort_part[1:]
+            direction = 'desc'
+        else:
+            # Default to ascending
+            field = sort_part
+            direction = 'asc'
+        
+        # Validate field name
+        if field not in allowed_fields:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid sort field: {field}. Allowed fields: {', '.join(sorted(allowed_fields))}"
+            )
+        
+        # Validate direction
+        if direction not in ['asc', 'desc']:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid sort direction: {direction}. Use 'asc' or 'desc'"
+            )
+        
+        sort_fields.append(SortField(field=field, direction=SortDirection(direction)))
+    
+    return sort_fields
+
+@app.get("/users/sorted")
+async def get_users_sorted(
+    sort_params: SortParams = Depends(),
+    request: Request
+):
+    """
+    Multi-field sorting with various syntax options
+    
+    Supported formats:
+    - ?sort=username:asc,created_at:desc
+    - ?sort=+username,-created_at
+    - ?sort=email:asc
+    - ?sort=-last_login
+    
+    Default sort: created_at:desc
+    """
+    
+    # Define allowed sort fields
+    allowed_fields = {
+        'id', 'username', 'email', 'full_name', 'created_at', 
+        'last_login', 'status', 'role', 'age'
+    }
+    
+    # Parse sort parameters
+    sort_fields = []
+    if sort_params.sort:
+        sort_fields = parse_sort_string(sort_params.sort, allowed_fields)
+    else:
+        # Default sort
+        sort_fields = [SortField(field='created_at', direction=SortDirection.desc)]
+    
+    # Simulate database sorting
+    users = [
+        {
+            "id": i,
+            "username": f"user_{i:03d}",
+            "email": f"user{i}@example.com",
+            "full_name": f"User {i}",
+            "created_at": f"2024-01-{(i % 28) + 1:02d}T10:30:00Z",
+            "last_login": f"2024-02-{(i % 28) + 1:02d}T15:45:00Z",
+            "status": ["active", "inactive"][i % 2],
+            "role": ["user", "admin", "moderator"][i % 3],
+            "age": 20 + (i % 50)
+        }
+        for i in range(1, 21)
+    ]
+    
+    # Apply sorting
+    for sort_field in reversed(sort_fields):  # Apply in reverse order for stable sort
+        reverse = sort_field.direction == SortDirection.desc
+        
+        if sort_field.field in ['created_at', 'last_login']:
+            # Date sorting
+            users.sort(key=lambda x: x[sort_field.field], reverse=reverse)
+        elif sort_field.field in ['id', 'age']:
+            # Numeric sorting
+            users.sort(key=lambda x: int(x[sort_field.field]), reverse=reverse)
+        else:
+            # String sorting
+            users.sort(key=lambda x: str(x[sort_field.field]).lower(), reverse=reverse)
+    
+    # Generate SQL equivalent for documentation
+    sql_order_by = ", ".join([
+        f"{sf.field} {'DESC' if sf.direction == SortDirection.desc else 'ASC'}"
+        for sf in sort_fields
+    ])
+    
+    return {
+        "data": users,
+        "sort_applied": [
+            {"field": sf.field, "direction": sf.direction.value}
+            for sf in sort_fields
+        ],
+        "metadata": {
+            "allowed_sort_fields": sorted(allowed_fields),
+            "sql_equivalent": f"ORDER BY {sql_order_by}",
+            "sort_examples": [
+                "?sort=username:asc,created_at:desc",
+                "?sort=+username,-created_at",
+                "?sort=-last_login",
+                "?sort=role:asc,age:desc,username:asc"
+        }
+    }
+```
+
+---

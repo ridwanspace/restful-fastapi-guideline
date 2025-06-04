@@ -1,0 +1,531 @@
+# 🔍 Filtering, Searching & Querying
+
+## 8. Filtering, Searching & Querying
+
+### Query Parameter Design
+
+Implement comprehensive filtering capabilities:
+
+```python
+from fastapi import FastAPI, Query, Depends, HTTPException
+from pydantic import BaseModel, Field
+from typing import Optional, List, Dict, Any, Union
+from datetime import datetime, date
+from enum import Enum
+import re
+
+class FilterOperator(str, Enum):
+    eq = "eq"          # Equal
+    ne = "ne"          # Not equal
+    gt = "gt"          # Greater than
+    gte = "gte"        # Greater than or equal
+    lt = "lt"          # Less than
+    lte = "lte"        # Less than or equal
+    in_ = "in"         # In list
+    nin = "nin"        # Not in list
+    like = "like"      # Pattern matching
+    ilike = "ilike"    # Case-insensitive pattern matching
+    regex = "regex"    # Regular expression
+    between = "between" # Range query
+
+class SortDirection(str, Enum):
+    asc = "asc"
+    desc = "desc"
+
+class FilterParams(BaseModel):
+    """Base filter parameters"""
+    page: int = Field(1, ge=1, description="Page number")
+    limit: int = Field(10, ge=1, le=100, description="Items per page")
+    sort_by: Optional[str] = Field(None, description="Field to sort by")
+    sort_order: SortDirection = Field(SortDirection.asc, description="Sort direction")
+
+def parse_filter_value(value: str, operator: FilterOperator) -> Any:
+    """Parse filter value based on operator"""
+    if operator in [FilterOperator.in_, FilterOperator.nin]:
+        return [item.strip() for item in value.split(",")]
+    elif operator == FilterOperator.between:
+        parts = value.split(",")
+        if len(parts) != 2:
+            raise ValueError("Between operator requires exactly 2 values")
+        return [parts[0].strip(), parts[1].strip()]
+    elif value.lower() in ["true", "false"]:
+        return value.lower() == "true"
+    elif value.isdigit():
+        return int(value)
+    else:
+        try:
+            return float(value)
+        except ValueError:
+            return value
+
+def build_filter_query(filters: Dict[str, str]) -> Dict[str, Any]:
+    """Build filter query from request parameters"""
+    query_filters = {}
+    
+    for key, value in filters.items():
+        if "__" in key:
+            field, operator = key.split("__", 1)
+            if operator not in [op.value for op in FilterOperator]:
+                continue
+            
+            try:
+                parsed_value = parse_filter_value(value, FilterOperator(operator))
+                if field not in query_filters:
+                    query_filters[field] = {}
+                query_filters[field][operator] = parsed_value
+            except ValueError:
+                continue
+        else:
+            # Default to equality
+            query_filters[key] = {"eq": value}
+    
+    return query_filters
+
+class UserFilters(FilterParams):
+    """User-specific filters"""
+    username: Optional[str] = Field(None, description="Filter by username")
+    email: Optional[str] = Field(None, description="Filter by email")
+    status: Optional[str] = Field(None, regex="^(active|inactive|suspended)$")
+    created_after: Optional[date] = Field(None, description="Filter users created after date")
+    created_before: Optional[date] = Field(None, description="Filter users created before date")
+    role: Optional[List[str]] = Field(None, description="Filter by roles")
+
+@app.get("/users/advanced-filter")
+async def get_users_advanced_filter(
+    # Basic filters
+    filters: UserFilters = Depends(),
+    
+    # Advanced filter parameters using query strings
+    username__like: Optional[str] = Query(None, description="Username contains pattern"),
+    email__ilike: Optional[str] = Query(None, description="Email contains pattern (case-insensitive)"),
+    age__gte: Optional[int] = Query(None, ge=0, description="Age greater than or equal"),
+    age__lte: Optional[int] = Query(None, le=150, description="Age less than or equal"),
+    created_at__between: Optional[str] = Query(None, description="Date range: YYYY-MM-DD,YYYY-MM-DD"),
+    role__in: Optional[str] = Query(None, description="Comma-separated list of roles"),
+    status__ne: Optional[str] = Query(None, description="Status not equal to"),
+    
+    # Full-text search
+    search: Optional[str] = Query(None, min_length=3, description="Full-text search"),
+    
+    # Field selection (sparse fieldsets)
+    fields: Optional[str] = Query(None, description="Comma-separated list of fields to return")
+):
+    """
+    Advanced filtering with multiple operators and search
+    
+    Example queries:
+    - /users/advanced-filter?username__like=john&age__gte=25&status__ne=inactive
+    - /users/advanced-filter?created_at__between=2024-01-01,2024-12-31&role__in=admin,user
+    - /users/advanced-filter?search=developer&fields=id,username,email
+    """
+    
+    # Build filter query from URL parameters
+    advanced_filters = {}
+    if username__like:
+        advanced_filters["username"] = {"like": f"%{username__like}%"}
+    if email__ilike:
+        advanced_filters["email"] = {"ilike": f"%{email__ilike}%"}
+    if age__gte:
+        advanced_filters.setdefault("age", {})["gte"] = age__gte
+    if age__lte:
+        advanced_filters.setdefault("age", {})["lte"] = age__lte
+    if created_at__between:
+        try:
+            start_date, end_date = created_at__between.split(",")
+            advanced_filters["created_at"] = {"between": [start_date.strip(), end_date.strip()]}
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid date range format")
+    if role__in:
+        roles = [role.strip() for role in role__in.split(",")]
+        advanced_filters["role"] = {"in": roles}
+    if status__ne:
+        advanced_filters["status"] = {"ne": status__ne}
+    
+    # Field selection
+    selected_fields = None
+    if fields:
+        selected_fields = [field.strip() for field in fields.split(",")]
+        # Validate field names
+        allowed_fields = {"id", "username", "email", "full_name", "status", "role", "created_at", "age"}
+        invalid_fields = set(selected_fields) - allowed_fields
+        if invalid_fields:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid fields: {', '.join(invalid_fields)}"
+            )
+    
+    # Simulate database query with filters
+    users = [
+        {"id": 1, "username": "john_doe", "email": "john@example.com", "status": "active", "role": "admin", "age": 30},
+        {"id": 2, "username": "jane_smith", "email": "jane@example.com", "status": "active", "role": "user", "age": 25},
+        {"id": 3, "username": "bob_wilson", "email": "bob@example.com", "status": "inactive", "role": "user", "age": 35}
+    ]
+    
+    # Apply field selection
+    if selected_fields:
+        users = [
+            {field: user[field] for field in selected_fields if field in user}
+            for user in users
+        ]
+    
+    return {
+        "data": users,
+        "filters_applied": advanced_filters,
+        "search_query": search,
+        "selected_fields": selected_fields,
+        "pagination": {
+            "page": filters.page,
+            "limit": filters.limit,
+            "total": len(users)
+        }
+    }
+
+# Complex nested filtering
+@app.get("/orders/complex-filter")
+async def get_orders_complex_filter(
+    # Nested object filtering
+    customer__name__ilike: Optional[str] = Query(None),
+    customer__email__like: Optional[str] = Query(None),
+    customer__age__gte: Optional[int] = Query(None),
+    
+    # Array filtering
+    items__product_id__in: Optional[str] = Query(None),
+    items__category__eq: Optional[str] = Query(None),
+    
+    # Date range filtering
+    created_at__gte: Optional[datetime] = Query(None),
+    created_at__lte: Optional[datetime] = Query(None),
+    
+    # Numeric range filtering
+    total_amount__between: Optional[str] = Query(None, regex=r"^\d+(\.\d{2})?,\d+(\.\d{2})?$"),
+    
+    # Logical operators (AND/OR)
+    logic: Optional[str] = Query("AND", regex="^(AND|OR)$")
+):
+    """
+    Complex filtering with nested objects and arrays
+    
+    Examples:
+    - /orders/complex-filter?customer__name__ilike=john&items__category__eq=electronics
+    - /orders/complex-filter?total_amount__between=100.00,500.00&logic=AND
+    """
+    
+    filters = {}
+    
+    # Process nested customer filters
+    if customer__name__ilike or customer__email__like or customer__age__gte:
+        customer_filters = {}
+        if customer__name__ilike:
+            customer_filters["name"] = {"ilike": f"%{customer__name__ilike}%"}
+        if customer__email__like:
+            customer_filters["email"] = {"like": f"%{customer__email__like}%"}
+        if customer__age__gte:
+            customer_filters["age"] = {"gte": customer__age__gte}
+        filters["customer"] = customer_filters
+    
+    # Process array filters
+    if items__product_id__in or items__category__eq:
+        items_filters = {}
+        if items__product_id__in:
+            product_ids = [int(pid) for pid in items__product_id__in.split(",")]
+            items_filters["product_id"] = {"in": product_ids}
+        if items__category__eq:
+            items_filters["category"] = {"eq": items__category__eq}
+        filters["items"] = {"any": items_filters}  # At least one item matches
+    
+    # Process date range
+    if created_at__gte or created_at__lte:
+        date_filter = {}
+        if created_at__gte:
+            date_filter["gte"] = created_at__gte
+        if created_at__lte:
+            date_filter["lte"] = created_at__lte
+        filters["created_at"] = date_filter
+    
+    # Process amount range
+    if total_amount__between:
+        min_amount, max_amount = total_amount__between.split(",")
+        filters["total_amount"] = {"between": [float(min_amount), float(max_amount)]}
+    
+    return {
+        "message": "Complex filtering applied",
+        "filters": filters,
+        "logic_operator": logic,
+        "sql_equivalent": "This would generate complex SQL with JOINs and subqueries"
+    }
+```
+
+### Search Implementation
+
+Implement full-text search capabilities:
+
+```python
+from fastapi import FastAPI, Query, Depends
+from typing import Optional, List, Dict
+import re
+from dataclasses import dataclass
+
+@dataclass
+class SearchResult:
+    id: int
+    title: str
+    content: str
+    score: float
+    highlights: List[str]
+
+class SearchParams(BaseModel):
+    q: str = Field(..., min_length=1, max_length=200, description="Search query")
+    fields: Optional[str] = Field(None, description="Fields to search (comma-separated)")
+    boost: Optional[Dict[str, float]] = Field(None, description="Field boost weights")
+    fuzzy: bool = Field(False, description="Enable fuzzy matching")
+    highlight: bool = Field(True, description="Include highlighted snippets")
+    min_score: Optional[float] = Field(None, ge=0, le=1, description="Minimum relevance score")
+
+def parse_search_query(query: str) -> Dict[str, Any]:
+    """Parse advanced search query syntax"""
+    
+    # Remove extra whitespace
+    query = re.sub(r'\s+', ' ', query.strip())
+    
+    # Extract quoted phrases
+    phrases = re.findall(r'"([^"]*)"', query)
+    
+    # Extract field-specific searches (field:value)
+    field_searches = re.findall(r'(\w+):(\S+)', query)
+    
+    # Extract boolean operators
+    has_and = ' AND ' in query.upper()
+    has_or = ' OR ' in query.upper()
+    has_not = ' NOT ' in query.upper() or query.startswith('-')
+    
+    # Extract individual terms (excluding phrases and field searches)
+    remaining_query = query
+    for phrase in phrases:
+        remaining_query = remaining_query.replace(f'"{phrase}"', '')
+    for field, value in field_searches:
+        remaining_query = remaining_query.replace(f'{field}:{value}', '')
+    
+    # Clean up boolean operators for term extraction
+    remaining_query = re.sub(r'\b(AND|OR|NOT)\b', '', remaining_query, flags=re.IGNORECASE)
+    terms = [term.strip() for term in remaining_query.split() if term.strip()]
+    
+    return {
+        "terms": terms,
+        "phrases": phrases,
+        "field_searches": dict(field_searches),
+        "has_and": has_and,
+        "has_or": has_or,
+        "has_not": has_not
+    }
+
+@app.get("/search", response_model=Dict[str, Any])
+async def advanced_search(
+    search_params: SearchParams = Depends(),
+    category: Optional[str] = Query(None, description="Filter by category"),
+    date_from: Optional[date] = Query(None, description="Search from date"),
+    date_to: Optional[date] = Query(None, description="Search to date"),
+    author: Optional[str] = Query(None, description="Filter by author"),
+    tags: Optional[str] = Query(None, description="Comma-separated tags")
+):
+    """
+    Advanced search with multiple features:
+    - Full-text search with relevance scoring
+    - Field-specific searching (title:python, author:john)
+    - Phrase searching ("exact phrase")
+    - Boolean operators (AND, OR, NOT)
+    - Fuzzy matching for typos
+    - Result highlighting
+    - Filtering by metadata
+    
+    Example queries:
+    - ?q=python programming
+    - ?q="machine learning" AND (python OR java)
+    - ?q=title:fastapi author:john
+    - ?q=api -rest&fuzzy=true
+    """
+    
+    # Parse the search query
+    parsed_query = parse_search_query(search_params.q)
+    
+    # Simulate search with scoring
+    mock_results = [
+        {
+            "id": 1,
+            "title": "FastAPI Tutorial: Building REST APIs",
+            "content": "Learn how to build fast and efficient REST APIs using FastAPI framework...",
+            "author": "John Doe",
+            "category": "programming",
+            "tags": ["python", "fastapi", "rest", "api"],
+            "created_at": "2024-01-15"
+        },
+        {
+            "id": 2,
+            "title": "Python Machine Learning Guide",
+            "content": "Complete guide to machine learning with Python and scikit-learn...",
+            "author": "Jane Smith",
+            "category": "data-science",
+            "tags": ["python", "machine-learning", "scikit-learn"],
+            "created_at": "2024-01-10"
+        }
+    ]
+    
+    # Apply filters
+    filtered_results = mock_results
+    if category:
+        filtered_results = [r for r in filtered_results if r["category"] == category]
+    if author:
+        filtered_results = [r for r in filtered_results if author.lower() in r["author"].lower()]
+    if tags:
+        search_tags = [tag.strip().lower() for tag in tags.split(",")]
+        filtered_results = [
+            r for r in filtered_results 
+            if any(tag in [t.lower() for t in r["tags"]] for tag in search_tags)
+        ]
+    
+    # Calculate relevance scores (simplified)
+    scored_results = []
+    for result in filtered_results:
+        score = calculate_relevance_score(result, parsed_query, search_params)
+        if search_params.min_score is None or score >= search_params.min_score:
+            scored_results.append({
+                **result,
+                "score": score,
+                "highlights": generate_highlights(result, parsed_query) if search_params.highlight else []
+            })
+    
+    # Sort by relevance score
+    scored_results.sort(key=lambda x: x["score"], reverse=True)
+    
+    return {
+        "query": search_params.q,
+        "parsed_query": parsed_query,
+        "total_results": len(scored_results),
+        "results": scored_results,
+        "search_metadata": {
+            "fuzzy_enabled": search_params.fuzzy,
+            "min_score": search_params.min_score,
+            "fields_searched": search_params.fields.split(",") if search_params.fields else ["title", "content"],
+            "execution_time_ms": 42  # Mock execution time
+        }
+    }
+
+def calculate_relevance_score(result: Dict, parsed_query: Dict, params: SearchParams) -> float:
+    """Calculate relevance score for search result"""
+    score = 0.0
+    max_score = 0.0
+    
+    # Default field weights
+    field_weights = {
+        "title": 2.0,
+        "content": 1.0,
+        "author": 1.5,
+        "tags": 1.2
+    }
+    
+    # Apply custom boost weights if provided
+    if params.boost:
+        field_weights.update(params.boost)
+    
+    # Search fields
+    search_fields = params.fields.split(",") if params.fields else ["title", "content"]
+    
+    for field in search_fields:
+        if field not in result:
+            continue
+            
+        field_content = str(result[field]).lower()
+        field_weight = field_weights.get(field, 1.0)
+        max_score += field_weight
+        
+        # Score for exact phrases
+        for phrase in parsed_query["phrases"]:
+            if phrase.lower() in field_content:
+                score += field_weight * 0.8
+        
+        # Score for individual terms
+        for term in parsed_query["terms"]:
+            if term.lower() in field_content:
+                score += field_weight * 0.3
+                
+            # Fuzzy matching (simplified)
+            if params.fuzzy and fuzzy_match(term.lower(), field_content):
+                score += field_weight * 0.1
+        
+        # Score for field-specific searches
+        if field in parsed_query["field_searches"]:
+            search_value = parsed_query["field_searches"][field].lower()
+            if search_value in field_content:
+                score += field_weight * 0.9
+    
+    # Normalize score
+    return min(score / max_score if max_score > 0 else 0, 1.0)
+
+def fuzzy_match(term: str, content: str, max_distance: int = 2) -> bool:
+    """Simple fuzzy matching using edit distance"""
+    words = content.split()
+    for word in words:
+        if abs(len(word) - len(term)) <= max_distance:
+            # Simplified edit distance check
+            if levenshtein_distance(term, word) <= max_distance:
+                return True
+    return False
+
+def levenshtein_distance(s1: str, s2: str) -> int:
+    """Calculate Levenshtein distance between two strings"""
+    if len(s1) < len(s2):
+        return levenshtein_distance(s2, s1)
+    
+    if len(s2) == 0:
+        return len(s1)
+    
+    previous_row = range(len(s2) + 1)
+    for i, c1 in enumerate(s1):
+        current_row = [i + 1]
+        for j, c2 in enumerate(s2):
+            insertions = previous_row[j + 1] + 1
+            deletions = current_row[j] + 1
+            substitutions = previous_row[j] + (c1 != c2)
+            current_row.append(min(insertions, deletions, substitutions))
+        previous_row = current_row
+    
+    return previous_row[-1]
+
+def generate_highlights(result: Dict, parsed_query: Dict, max_length: int = 150) -> List[str]:
+    """Generate highlighted snippets from search results"""
+    highlights = []
+    content = result.get("content", "")
+    
+    # Find sentences containing search terms
+    sentences = re.split(r'[.!?]+', content)
+    
+    for sentence in sentences:
+        sentence = sentence.strip()
+        if not sentence:
+            continue
+            
+        # Check if sentence contains search terms
+        contains_term = False
+        highlighted_sentence = sentence
+        
+        # Highlight phrases first
+        for phrase in parsed_query["phrases"]:
+            if phrase.lower() in sentence.lower():
+                contains_term = True
+                pattern = re.compile(re.escape(phrase), re.IGNORECASE)
+                highlighted_sentence = pattern.sub(f"<mark>{phrase}</mark>", highlighted_sentence)
+        
+        # Highlight individual terms
+        for term in parsed_query["terms"]:
+            if term.lower() in sentence.lower():
+                contains_term = True
+                pattern = re.compile(r'\b' + re.escape(term) + r'\b', re.IGNORECASE)
+                highlighted_sentence = pattern.sub(f"<mark>{term}</mark>", highlighted_sentence)
+        
+        if contains_term:
+            # Truncate if too long
+            if len(highlighted_sentence) > max_length:
+                highlighted_sentence = highlighted_sentence[:max_length] + "..."
+            highlights.append(highlighted_sentence)
+    
+    return highlights[:3]  # Return top 3 highlights
+```

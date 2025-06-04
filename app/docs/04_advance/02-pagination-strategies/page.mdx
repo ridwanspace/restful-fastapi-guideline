@@ -1,0 +1,319 @@
+# 📄 Pagination Strategies
+
+## 9. Pagination Strategies
+
+### Offset-based Pagination
+
+Traditional page-based pagination for most use cases:
+
+```python
+from fastapi import FastAPI, Query, Depends, HTTPException
+from pydantic import BaseModel, Field
+from typing import Optional, List, Dict, Any
+from math import ceil
+
+class PaginationParams(BaseModel):
+    page: int = Field(1, ge=1, description="Page number (1-based)")
+    limit: int = Field(10, ge=1, le=100, description="Items per page")
+    
+    @property
+    def offset(self) -> int:
+        return (self.page - 1) * self.limit
+
+class PaginatedResponse(BaseModel):
+    data: List[Dict[str, Any]]
+    pagination: Dict[str, Any]
+    metadata: Dict[str, Any] = {}
+
+def create_pagination_info(
+    total_items: int,
+    current_page: int,
+    limit: int,
+    base_url: str
+) -> Dict[str, Any]:
+    """Create comprehensive pagination metadata"""
+    
+    total_pages = ceil(total_items / limit) if total_items > 0 else 0
+    has_next = current_page < total_pages
+    has_prev = current_page > 1
+    
+    # Generate page links
+    links = {}
+    if has_prev:
+        links["first"] = f"{base_url}?page=1&limit={limit}"
+        links["prev"] = f"{base_url}?page={current_page - 1}&limit={limit}"
+    
+    if has_next:
+        links["next"] = f"{base_url}?page={current_page + 1}&limit={limit}"
+        links["last"] = f"{base_url}?page={total_pages}&limit={limit}"
+    
+    links["self"] = f"{base_url}?page={current_page}&limit={limit}"
+    
+    return {
+        "page": current_page,
+        "limit": limit,
+        "total_items": total_items,
+        "total_pages": total_pages,
+        "has_next": has_next,
+        "has_prev": has_prev,
+        "items_on_page": min(limit, max(0, total_items - (current_page - 1) * limit)),
+        "links": links
+    }
+
+@app.get("/users", response_model=PaginatedResponse)
+async def get_users_paginated(
+    pagination: PaginationParams = Depends(),
+    request: Request
+):
+    """Offset-based pagination example"""
+    
+    # Simulate database query
+    total_users = 250  # Total count from database
+    
+    # Apply offset and limit
+    start_idx = pagination.offset
+    end_idx = start_idx + pagination.limit
+    
+    # Simulate fetching data
+    users = [
+        {
+            "id": i,
+            "username": f"user_{i}",
+            "email": f"user_{i}@example.com",
+            "created_at": "2024-01-01T00:00:00Z"
+        }
+        for i in range(start_idx + 1, min(end_idx + 1, total_users + 1))
+    ]
+    
+    base_url = f"{request.url.scheme}://{request.url.netloc}{request.url.path}"
+    pagination_info = create_pagination_info(
+        total_users, pagination.page, pagination.limit, base_url
+    )
+    
+    return PaginatedResponse(
+        data=users,
+        pagination=pagination_info,
+        metadata={
+            "timestamp": datetime.utcnow().isoformat() + "Z",
+            "query_time_ms": 45
+        }
+    )
+
+# Deep pagination performance warning
+@app.get("/users/deep-pagination-warning")
+async def get_users_with_warning(
+    pagination: PaginationParams = Depends(),
+    request: Request
+):
+    """Handle deep pagination with performance warnings"""
+    
+    # Warn about performance issues with deep pagination
+    if pagination.offset > 10000:
+        return JSONResponse(
+            status_code=400,
+            content={
+                "error": "DEEP_PAGINATION_WARNING",
+                "message": "Offset-based pagination beyond 10,000 items may be slow",
+                "suggestion": "Use cursor-based pagination for better performance",
+                "cursor_endpoint": "/users/cursor-paginated"
+            }
+        )
+    
+    # Continue with normal pagination...
+    return {"message": "Normal pagination response"}
+```
+
+### Cursor-based Pagination
+
+High-performance pagination for large datasets:
+
+```python
+from fastapi import FastAPI, Query, HTTPException
+from pydantic import BaseModel
+from typing import Optional, List, Dict, Any
+import base64
+import json
+from datetime import datetime
+
+class CursorPaginationParams(BaseModel):
+    limit: int = Field(10, ge=1, le=100, description="Items per page")
+    cursor: Optional[str] = Field(None, description="Pagination cursor")
+    direction: str = Field("forward", regex="^(forward|backward)$")
+
+def encode_cursor(data: Dict[str, Any]) -> str:
+    """Encode cursor data to base64 string"""
+    cursor_json = json.dumps(data, default=str)
+    return base64.b64encode(cursor_json.encode()).decode()
+
+def decode_cursor(cursor: str) -> Dict[str, Any]:
+    """Decode cursor from base64 string"""
+    try:
+        cursor_json = base64.b64decode(cursor.encode()).decode()
+        return json.loads(cursor_json)
+    except (ValueError, json.JSONDecodeError):
+        raise HTTPException(status_code=400, detail="Invalid cursor format")
+
+@app.get("/users/cursor-paginated")
+async def get_users_cursor_paginated(
+    params: CursorPaginationParams = Depends(),
+    request: Request
+):
+    """
+    Cursor-based pagination for large datasets
+    
+    Advantages:
+    - Consistent performance regardless of position
+    - Real-time data safety (no duplicates/missing items)
+    - Efficient for large datasets
+    
+    Cursor format (base64 encoded JSON):
+    {
+        "id": 12345,
+        "created_at": "2024-01-15T10:30:00Z",
+        "direction": "forward"
+    }
+    """
+    
+    # Decode cursor if provided
+    cursor_data = None
+    if params.cursor:
+        cursor_data = decode_cursor(params.cursor)
+    
+    # Simulate database query with cursor
+    base_query = "SELECT * FROM users"
+    where_clauses = []
+    order_clause = "ORDER BY created_at DESC, id DESC"
+    
+    if cursor_data:
+        cursor_timestamp = cursor_data.get("created_at")
+        cursor_id = cursor_data.get("id")
+        
+        if params.direction == "forward":
+            # Get items after cursor
+            where_clauses.append(
+                f"(created_at < '{cursor_timestamp}' OR "
+                f"(created_at = '{cursor_timestamp}' AND id < {cursor_id}))"
+            )
+        else:
+            # Get items before cursor (for backward pagination)
+            where_clauses.append(
+                f"(created_at > '{cursor_timestamp}' OR "
+                f"(created_at = '{cursor_timestamp}' AND id > {cursor_id}))"
+            )
+            order_clause = "ORDER BY created_at ASC, id ASC"
+    
+    # Simulate fetching data
+    users = [
+        {
+            "id": 1000 - i,
+            "username": f"user_{1000 - i}",
+            "email": f"user_{1000 - i}@example.com",
+            "created_at": f"2024-01-{15 - (i // 30):02d}T10:30:00Z"
+        }
+        for i in range(params.limit + 1)  # Fetch one extra to check if there's more
+    ]
+    
+    # Check if there are more items
+    has_more = len(users) > params.limit
+    if has_more:
+        users = users[:-1]  # Remove the extra item
+    
+    # Generate cursors for navigation
+    cursors = {}
+    if users:
+        # Next cursor (for forward pagination)
+        if has_more:
+            last_item = users[-1]
+            cursors["next"] = encode_cursor({
+                "id": last_item["id"],
+                "created_at": last_item["created_at"],
+                "direction": "forward"
+            })
+        
+        # Previous cursor (for backward pagination)
+        if cursor_data:  # Only if we're not on the first page
+            first_item = users[0]
+            cursors["prev"] = encode_cursor({
+                "id": first_item["id"],
+                "created_at": first_item["created_at"],
+                "direction": "backward"
+            })
+    
+    return {
+        "data": users,
+        "pagination": {
+            "limit": params.limit,
+            "has_more": has_more,
+            "cursors": cursors,
+            "direction": params.direction
+        },
+        "metadata": {
+            "cursor_info": cursor_data,
+            "query": f"{base_query} WHERE {' AND '.join(where_clauses) if where_clauses else '1=1'} {order_clause} LIMIT {params.limit + 1}"
+        }
+    }
+
+# Keyset pagination for ordered datasets
+@app.get("/products/keyset-paginated")
+async def get_products_keyset_paginated(
+    limit: int = Query(10, ge=1, le=100),
+    last_price: Optional[float] = Query(None, description="Last item price from previous page"),
+    last_id: Optional[int] = Query(None, description="Last item ID from previous page"),
+    sort_order: str = Query("desc", regex="^(asc|desc)$")
+):
+    """
+    Keyset pagination using price and ID for ordering
+    
+    More efficient than offset-based pagination for large, ordered datasets
+    Ideal for feeds, timelines, and sorted product listings
+    """
+    
+    # Build WHERE clause for keyset pagination
+    where_conditions = []
+    if last_price is not None and last_id is not None:
+        if sort_order == "desc":
+            where_conditions.append(
+                f"(price < {last_price} OR (price = {last_price} AND id < {last_id}))"
+            )
+        else:
+            where_conditions.append(
+                f"(price > {last_price} OR (price = {last_price} AND id > {last_id}))"
+            )
+    
+    # Simulate products data
+    products = [
+        {
+            "id": 100 + i,
+            "name": f"Product {100 + i}",
+            "price": round(99.99 - (i * 0.5), 2),
+            "category": "electronics"
+        }
+        for i in range(limit + 1)
+    ]
+    
+    has_more = len(products) > limit
+    if has_more:
+        products = products[:-1]
+    
+    # Generate next page parameters
+    next_page_params = {}
+    if products and has_more:
+        last_product = products[-1]
+        next_page_params = {
+            "last_price": last_product["price"],
+            "last_id": last_product["id"],
+            "limit": limit,
+            "sort_order": sort_order
+        }
+    
+    return {
+        "data": products,
+        "pagination": {
+            "limit": limit,
+            "has_more": has_more,
+            "next_page_params": next_page_params,
+            "sort_order": sort_order
+        },
+        }
+    }
+```

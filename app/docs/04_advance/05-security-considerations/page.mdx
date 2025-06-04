@@ -1,0 +1,216 @@
+# 🛡️ Security Considerations
+
+## 12. Security Considerations
+
+### Input Validation and Sanitization
+
+Comprehensive validation strategies to prevent common attacks:
+
+```python
+from fastapi import FastAPI, HTTPException, Query, Body
+from pydantic import BaseModel, Field, validator, EmailStr
+from typing import Optional, List, Dict, Pattern
+import re
+import html
+from urllib.parse import urlparse
+import bleach
+
+class SecureUserInput(BaseModel):
+    """Secure user input model with comprehensive validation"""
+    
+    username: str = Field(
+        ..., 
+        min_length=3, 
+        max_length=30,
+        regex=r"^[a-zA-Z0-9_-]+$",
+        description="Username: alphanumeric, underscore, hyphen only"
+    )
+    
+    email: EmailStr = Field(..., description="Valid email address")
+    
+    password: str = Field(
+        ...,
+        min_length=8,
+        max_length=128,
+        description="Password: minimum 8 characters"
+    )
+    
+    full_name: str = Field(
+        ...,
+        min_length=1,
+        max_length=100,
+        description="Full name"
+    )
+    
+    website: Optional[str] = Field(
+        None,
+        max_length=200,
+        description="Website URL"
+    )
+    
+    bio: Optional[str] = Field(
+        None,
+        max_length=500,
+        description="User biography"
+    )
+    
+    age: Optional[int] = Field(
+        None,
+        ge=13,
+        le=120,
+        description="Age: 13-120"
+    )
+    
+    tags: List[str] = Field(
+        default=[],
+        max_items=10,
+        description="User tags"
+    )
+    
+    metadata: Optional[Dict[str, str]] = Field(
+        None,
+        description="Additional metadata"
+    )
+    
+    @validator('password')
+    def validate_password_strength(cls, v):
+        """Validate password strength"""
+        if not re.search(r'[A-Z]', v):
+            raise ValueError('Password must contain at least one uppercase letter')
+        if not re.search(r'[a-z]', v):
+            raise ValueError('Password must contain at least one lowercase letter')
+        if not re.search(r'[0-9]', v):
+            raise ValueError('Password must contain at least one digit')
+        if not re.search(r'[!@#$%^&*(),.?":{}|<>]', v):
+            raise ValueError('Password must contain at least one special character')
+        
+        # Check for common weak patterns
+        weak_patterns = [
+            r'123456', r'password', r'qwerty', r'admin',
+            r'(.)\1{2,}',  # Repeated characters (aaa, 111)
+        ]
+        for pattern in weak_patterns:
+            if re.search(pattern, v.lower()):
+                raise ValueError('Password contains weak patterns')
+        
+        return v
+    
+    @validator('full_name')
+    def sanitize_full_name(cls, v):
+        """Sanitize full name to prevent XSS"""
+        if not v:
+            return v
+        
+        # Remove HTML tags and escape special characters
+        sanitized = html.escape(v.strip())
+        
+        # Only allow letters, spaces, apostrophes, and hyphens
+        if not re.match(r"^[a-zA-Z\s'\-\.]+$", sanitized):
+            raise ValueError('Full name contains invalid characters')
+        
+        return sanitized
+    
+    @validator('website')
+    def validate_website_url(cls, v):
+        """Validate and sanitize website URL"""
+        if not v:
+            return v
+        
+        try:
+            parsed = urlparse(v)
+            
+            # Ensure scheme is http or https
+            if parsed.scheme not in ['http', 'https']:
+                raise ValueError('Website URL must use http or https')
+            
+            # Basic domain validation
+            if not parsed.netloc:
+                raise ValueError('Invalid website URL')
+            
+            # Prevent localhost and private IPs in production
+            forbidden_domains = ['localhost', '127.0.0.1', '0.0.0.0']
+            if any(domain in parsed.netloc.lower() for domain in forbidden_domains):
+                raise ValueError('Local URLs not allowed')
+            
+            return v
+        except Exception:
+            raise ValueError('Invalid website URL format')
+    
+    @validator('bio')
+    def sanitize_bio(cls, v):
+        """Sanitize bio content"""
+        if not v:
+            return v
+        
+        # Allow basic HTML tags but sanitize
+        allowed_tags = ['b', 'i', 'em', 'strong', 'a', 'br']
+        allowed_attributes = {'a': ['href']}
+        
+        sanitized = bleach.clean(
+            v,
+            tags=allowed_tags,
+            attributes=allowed_attributes,
+            strip=True
+        )
+        
+        return sanitized.strip()
+    
+    @validator('tags')
+    def validate_tags(cls, v):
+        """Validate and sanitize tags"""
+        if not v:
+            return []
+        
+        sanitized_tags = []
+        for tag in v:
+            # Clean and validate each tag
+            clean_tag = re.sub(r'[^a-zA-Z0-9_-]', '', tag.strip().lower())
+            if len(clean_tag) >= 2 and len(clean_tag) <= 20:
+                sanitized_tags.append(clean_tag)
+        
+        # Remove duplicates while preserving order
+        return list(dict.fromkeys(sanitized_tags))
+    
+    @validator('metadata')
+    def validate_metadata(cls, v):
+        """Validate metadata dictionary"""
+        if not v:
+            return {}
+        
+        # Limit number of metadata fields
+        if len(v) > 10:
+            raise ValueError('Too many metadata fields (max 10)')
+        
+        validated_metadata = {}
+        for key, value in v.items():
+            # Validate keys
+            if not re.match(r'^[a-zA-Z0-9_-]+$', key) or len(key) > 50:
+                raise ValueError(f'Invalid metadata key: {key}. Keys must be alphanumeric, underscore, or hyphen, and max 50 chars.')
+            
+            # Validate values (e.g., ensure they are strings and within a certain length)
+            if not isinstance(value, str) or len(value) > 255:
+                raise ValueError(f'Invalid metadata value for key "{key}". Values must be strings and max 255 chars.')
+            
+            validated_metadata[key] = html.escape(value.strip()) # Sanitize and store
+        
+        return validated_metadata
+
+# Example of how to use this model (optional, can be removed if not needed in docs)
+# app = FastAPI()
+#
+# @app.post("/register/")
+# async def register_user(user_input: SecureUserInput):
+#     # At this point, user_input is validated
+#     # Proceed with user registration logic
+#     return {"message": "User registered successfully", "user_details": user_input.dict()}
+#
+# @app.get("/test-validation/")
+# async def test_validation_endpoint(
+#     username: str = Query(..., min_length=3, max_length=30, regex=r"^[a-zA-Z0-9_-]+$"),
+#     email: EmailStr = Query(...),
+#     age: Optional[int] = Query(None, ge=13, le=120)
+# ):
+#     # This endpoint demonstrates query parameter validation similar to Pydantic fields
+#     return {"message": "Query parameters are valid", "username": username, "email": email, "age": age}
+
+```

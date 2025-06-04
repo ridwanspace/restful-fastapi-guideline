@@ -1,0 +1,260 @@
+# 📚 Best Practices & Common Pitfalls
+
+## Common Pitfalls & Best Practices
+
+### API Design Anti-Patterns to Avoid
+
+| ❌ Anti-Pattern | ✅ Best Practice | Explanation |
+|----------------|------------------|-------------|
+| `/getUsers` | `/users` | Use nouns, not verbs in URLs |
+| `/user/123` | `/users/123` | Use plural nouns for consistency |
+| `/users?id=1,2,3` | `/users?ids=1,2,3` or `/users/bulk` | Clear parameter naming for multiple IDs |
+| `POST /users/123/delete` | `DELETE /users/123` | Use proper HTTP methods |
+| Mixed status codes for similar errors | Consistent status code mapping | Same error types should return same status codes |
+| Exposing internal IDs | UUIDs or encoded IDs | Prevent enumeration attacks |
+| No API versioning | Clear versioning strategy | Plan for API evolution from day one |
+| Inconsistent error formats | Standardized error structure | Same error format across all endpoints |
+| No rate limiting | Implement rate limiting | Protect against abuse and overload |
+| Synchronous file uploads | Asynchronous processing | Handle large uploads properly |
+
+### Performance Optimization Checklist
+
+**Database Optimization:**
+- [ ] Use appropriate indexes for query patterns
+- [ ] Implement connection pooling
+- [ ] Use read replicas for read-heavy operations
+- [ ] Implement query result caching
+- [ ] Avoid N+1 query problems
+- [ ] Use pagination for large result sets
+- [ ] Implement database query timeouts
+
+**API Response Optimization:**
+- [ ] Use field selection/sparse fieldsets
+- [ ] Implement response compression (gzip)
+- [ ] Add appropriate caching headers
+- [ ] Use ETags for conditional requests
+- [ ] Minimize response payload size
+- [ ] Implement response streaming for large datasets
+
+**Security Checklist:**
+- [ ] Input validation and sanitization
+- [ ] SQL injection prevention
+- [ ] XSS prevention
+- [ ] CSRF protection
+- [ ] Rate limiting implementation
+- [ ] Authentication and authorization
+- [ ] HTTPS enforcement
+- [ ] Security headers configuration
+- [ ] File upload security
+- [ ] Audit logging
+
+**Monitoring & Observability:**
+- [ ] Request/response logging
+- [ ] Error tracking and alerting
+- [ ] Performance metrics collection
+- [ ] Health check endpoints
+- [ ] Distributed tracing
+- [ ] Cache hit rate monitoring
+- [ ] Database performance monitoring
+- [ ] API usage analytics
+
+### Testing Strategy Recommendations
+
+```python
+# Example comprehensive test structure for FastAPI
+
+import pytest
+from fastapi.testclient import TestClient
+from unittest.mock import Mock, patch
+import json
+
+@pytest.fixture
+def client():
+    return TestClient(app)
+
+@pytest.fixture
+def auth_headers():
+    # Mock authentication headers
+    return {"Authorization": "Bearer mock_token"}
+
+class TestUserEndpoints:
+    """Comprehensive user endpoint tests"""
+    
+    def test_create_user_success(self, client):
+        """Test successful user creation"""
+        user_data = {
+            "username": "testuser",
+            "email": "test@example.com",
+            "password": "SecurePass123!",
+            "full_name": "Test User"
+        }
+        
+        response = client.post("/users", json=user_data)
+        
+        assert response.status_code == 201
+        assert "id" in response.json()
+        assert response.json()["username"] == user_data["username"]
+    
+    def test_create_user_validation_error(self, client):
+        """Test user creation with invalid data"""
+        invalid_data = {
+            "username": "ab",  # Too short
+            "email": "invalid-email",
+            "password": "weak"
+        }
+        
+        response = client.post("/users", json=invalid_data)
+        
+        assert response.status_code == 422
+        error_detail = response.json()
+        assert "validation_errors" in error_detail["detail"]
+    
+    def test_get_user_not_found(self, client):
+        """Test getting non-existent user"""
+        response = client.get("/users/99999")
+        
+        assert response.status_code == 404
+        assert response.json()["error_code"] == "USER_NOT_FOUND"
+    
+    def test_authentication_required(self, client):
+        """Test endpoint requiring authentication"""
+        response = client.get("/users/me")
+        
+        assert response.status_code == 401
+    
+    def test_rate_limiting(self, client):
+        """Test rate limiting functionality"""
+        # Make multiple requests quickly
+        for _ in range(101):  # Assuming 100 request limit
+            response = client.get("/users")
+            if response.status_code == 429:
+                break
+        
+        assert response.status_code == 429
+        assert "rate_limit" in response.json()["error_code"].lower()
+    
+    @patch('app.database.get_user')
+    def test_database_error_handling(self, mock_get_user, client):
+        """Test handling of database errors"""
+        mock_get_user.side_effect = Exception("Database connection failed")
+        
+        response = client.get("/users/123")
+        
+        assert response.status_code == 500
+        assert "INTERNAL_SERVER_ERROR" in response.json()["error_code"]
+
+class TestAPIVersioning:
+    """Test API versioning functionality"""
+    
+    def test_v1_endpoint(self, client):
+        """Test version 1 endpoint"""
+        response = client.get("/api/v1/users/123")
+        
+        assert response.status_code == 200
+        # Verify v1 response structure
+        
+    def test_v2_endpoint(self, client):
+        """Test version 2 endpoint"""
+        response = client.get("/api/v2/users/123")
+        
+        assert response.status_code == 200
+        # Verify v2 response structure with new fields
+    
+    def test_header_versioning(self, client):
+        """Test version selection via headers"""
+        headers = {"API-Version": "2.0"}
+        response = client.get("/users/123", headers=headers)
+        
+        assert response.status_code == 200
+        # Verify correct version was used
+
+class TestPagination:
+    """Test pagination functionality"""
+    
+    def test_default_pagination(self, client):
+        """Test default pagination parameters"""
+        response = client.get("/users")
+        
+        assert response.status_code == 200
+        data = response.json()
+        assert "pagination" in data
+        assert data["pagination"]["page"] == 1
+        assert data["pagination"]["limit"] == 10
+    
+    def test_custom_pagination(self, client):
+        """Test custom pagination parameters"""
+        response = client.get("/users?page=2&limit=20")
+        
+        assert response.status_code == 200
+        data = response.json()
+        assert data["pagination"]["page"] == 2
+        assert data["pagination"]["limit"] == 20
+    
+    def test_pagination_limits(self, client):
+        """Test pagination parameter limits"""
+        response = client.get("/users?page=0&limit=1000")
+        
+        assert response.status_code == 400  # Invalid page
+        
+        response = client.get("/users?page=1&limit=1000")
+        
+        # Should enforce maximum limit
+        data = response.json()
+        assert data["pagination"]["limit"] <= 100
+
+class TestSorting:
+    """Test sorting functionality"""
+    
+    def test_default_sorting(self, client):
+        """Test default sort order"""
+        response = client.get("/users")
+        
+        assert response.status_code == 200
+        # Verify default sort is applied
+    
+    def test_custom_sorting(self, client):
+        """Test custom sort parameters"""
+        response = client.get("/users?sort=username:asc,created_at:desc")
+        
+        assert response.status_code == 200
+        # Verify sort was applied correctly
+    
+    def test_invalid_sort_field(self, client):
+        """Test sorting with invalid field"""
+        response = client.get("/users?sort=invalid_field:asc")
+        
+        assert response.status_code == 400
+        assert "invalid sort field" in response.json()["detail"]["message"].lower()
+```
+
+#### Load testing example with locust
+```python
+from locust import HttpUser, task, between
+
+class APILoadTest(HttpUser):
+    wait_time = between(1, 3)
+    
+    def on_start(self):
+        # Login or setup authentication
+        pass
+    
+    @task(3)
+    def get_users(self):
+        self.client.get("/users")
+    
+    @task(2)
+    def get_user_detail(self):
+        user_id = random.randint(1, 1000)
+        self.client.get(f"/users/{user_id}")
+    
+    @task(1)
+    def create_user(self):
+        user_data = {
+            "username": f"testuser_{random.randint(1, 10000)}",
+            "email": f"test_{random.randint(1, 10000)}@example.com",
+            "password": "TestPass123!"
+        }
+        self.client.post("/users", json=user_data)
+```
+
+---
