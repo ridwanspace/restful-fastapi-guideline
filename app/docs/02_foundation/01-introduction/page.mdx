@@ -458,12 +458,12 @@ URLs should represent **things** (nouns), not **actions** (verbs). The HTTP meth
 
 ```mermaid
 graph LR
-    A[HTTP Method + Resource] --> B[Complete Operation]
+    A["HTTP Method + Resource"] --> B["Complete Operation"]
     
-    C[GET] --> D[/users] --> E[Get all users]
-    F[POST] --> G[/users] --> H[Create new user]
-    I[PUT] --> J[/users/123] --> K[Update user 123]
-    L[DELETE] --> M[/users/123] --> N[Delete user 123]
+    C[GET] --> D["/users"] --> E["Get all users"]
+    F[POST] --> G["/users"] --> H["Create new user"]
+    I[PUT] --> J["/users/123"] --> K["Update user 123"]
+    L[DELETE] --> M["/users/123"] --> N["Delete user 123"]
 ```
 
 **Examples:**
