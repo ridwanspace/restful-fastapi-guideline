@@ -113,7 +113,7 @@ graph TD
 
 ### 1. Clone the Repository
 ```bash
-git clone https://github.com/your-username/restful-fastapi-guideline.git
+git clone https://github.com/ridwanspace/restful-fastapi-guideline.git
 cd restful-fastapi-guideline
 ```
 
@@ -131,7 +131,8 @@ pip install fastapi uvicorn pydantic
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) to access the complete documentation.
+- Open [http://localhost:3000](http://localhost:3000) to access the landing page.
+- Open [http://localhost:3000/docs](http://localhost:3000/docs) to access the complete documentation.
 
 ### 4. Follow the Learning Path
 Start with [Getting Started](/docs/01_getting-started) and progress through each section:
