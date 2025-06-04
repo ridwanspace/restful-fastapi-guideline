@@ -519,11 +519,11 @@ Use query parameters to modify how you retrieve resources:
 
 ```mermaid
 graph LR
-    A[Base Resource] --> B[+ Filters] --> C[+ Sorting] --> D[+ Pagination]
+    A["Base Resource"] --> B["&plus; Filters"] --> C["&plus; Sorting"] --> D["&plus; Pagination"]
     
-    E[/products] --> F[/products?category=electronics]
-    F --> G[/products?category=electronics&sort=price]
-    G --> H[/products?category=electronics&sort=price&limit=10&offset=20]
+    E["/products"] --> F["/products?category=electronics"]
+    F --> G["/products?category=electronics&sort=price"]
+    G --> H["/products?category=electronics&sort=price&limit=10&offset=20"]
 ```
 
 **Common Query Parameters:**
