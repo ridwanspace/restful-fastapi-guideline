@@ -1,0 +1,415 @@
+# Your First API
+
+Now that you understand what APIs are and have FastAPI installed, let's build your very first working API! We'll start simple and gradually add more features, explaining each step along the way.
+
+## What We'll Build
+
+We're going to create a **Task Manager API** that can:
+- Create new tasks
+- List all tasks
+- Get details of a specific task
+- Update existing tasks
+- Delete tasks
+
+This covers all the basic operations (called CRUD - Create, Read, Update, Delete) that most APIs need.
+
+## Step 1: Your First "Hello World" API
+
+Let's start with the simplest possible API to make sure everything works.
+
+Create a new file called `main.py` in your project folder:
+
+```python
+from fastapi import FastAPI
+
+# Create the FastAPI app instance
+app = FastAPI(
+    title="My First API",
+    description="A simple task manager API for learning",
+    version="1.0.0"
+)
+
+@app.get("/")
+async def read_root():
+    """Welcome message for our API"""
+    return {"message": "Welcome to my first API!"}
+
+@app.get("/hello/{name}")
+async def say_hello(name: str):
+    """Say hello to a specific person"""
+    return {"message": f"Hello, {name}!"}
+```
+
+**Let's break this down:**
+
+1. **Import FastAPI**: We import the main FastAPI class
+2. **Create app instance**: `app = FastAPI()` creates our API application
+3. **Define endpoints**: Each `@app.get()` decorator creates a new endpoint
+4. **Return data**: We return Python dictionaries, which FastAPI automatically converts to JSON
+
+### Run Your API
+
+Open your terminal in the project folder and run:
+
+```bash
+uvicorn main:app --reload
+```
+
+- `main`: refers to your `main.py` file
+- `app`: refers to the `app = FastAPI()` object inside main.py
+- `--reload`: automatically restarts the server when you change code (perfect for development)
+
+You should see output like:
+```
+INFO:     Started server process [12345]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
+```
+
+### Test Your API
+
+1. **Open your browser** and go to `http://127.0.0.1:8000`
+   - You should see: `{"message": "Welcome to my first API!"}`
+
+2. **Try the personalized greeting** at `http://127.0.0.1:8000/hello/YourName`
+   - You should see: `{"message": "Hello, YourName!"}`
+
+3. **Check the automatic documentation** at `http://127.0.0.1:8000/docs`
+   - This is Swagger UI - you can test your API directly here!
+
+4. **Alternative documentation** at `http://127.0.0.1:8000/redoc`
+   - This is ReDoc - another way to view your API docs
+
+🎉 **Congratulations!** You've just created and run your first API!
+
+## Step 2: Adding a Data Model
+
+Real APIs work with structured data. Let's create a Task model using Pydantic:
+
+Add this to your `main.py` file (add it after the imports):
+
+```python
+from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel
+from typing import Optional, List
+from datetime import datetime
+
+# Data Models
+class TaskCreate(BaseModel):
+    """Model for creating a new task"""
+    title: str
+    description: Optional[str] = None
+    completed: bool = False
+
+class Task(BaseModel):
+    """Model representing a task with all fields"""
+    id: int
+    title: str
+    description: Optional[str] = None
+    completed: bool = False
+    created_at: datetime
+
+# In-memory storage (in real apps, you'd use a database)
+tasks_db: List[Task] = []
+next_id = 1
+```
+
+**What's happening here:**
+
+1. **TaskCreate**: Used when creating new tasks (doesn't include ID or creation time)
+2. **Task**: The complete task model with all fields
+3. **tasks_db**: A simple list to store our tasks (temporary storage)
+4. **next_id**: A counter to assign unique IDs
+
+## Step 3: Create Tasks (POST)
+
+Add this endpoint to create new tasks:
+
+```python
+@app.post("/tasks", response_model=Task)
+async def create_task(task: TaskCreate):
+    """Create a new task"""
+    global next_id
+    
+    # Create a new task with ID and timestamp
+    new_task = Task(
+        id=next_id,
+        title=task.title,
+        description=task.description,
+        completed=task.completed,
+        created_at=datetime.now()
+    )
+    
+    # Add to our "database"
+    tasks_db.append(new_task)
+    next_id += 1
+    
+    return new_task
+```
+
+**Key concepts:**
+- `@app.post()`: Creates a POST endpoint (for creating data)
+- `task: TaskCreate`: FastAPI automatically validates the request body
+- `response_model=Task`: Tells FastAPI what the response should look like
+- `global next_id`: We modify the global counter (in real apps, databases handle this)
+
+## Step 4: List All Tasks (GET)
+
+Add this endpoint to retrieve all tasks:
+
+```python
+@app.get("/tasks", response_model=List[Task])
+async def get_tasks():
+    """Get all tasks"""
+    return tasks_db
+
+@app.get("/tasks/{task_id}", response_model=Task)
+async def get_task(task_id: int):
+    """Get a specific task by ID"""
+    # Find the task
+    for task in tasks_db:
+        if task.id == task_id:
+            return task
+    
+    # If not found, return 404 error
+    raise HTTPException(status_code=404, detail="Task not found")
+```
+
+**Key concepts:**
+- `List[Task]`: Returns a list of Task objects
+- `{task_id}`: Path parameter - gets the ID from the URL
+- `HTTPException`: How we return error responses with proper status codes
+
+## Step 5: Update Tasks (PUT)
+
+Add this endpoint to update existing tasks:
+
+```python
+@app.put("/tasks/{task_id}", response_model=Task)
+async def update_task(task_id: int, task_update: TaskCreate):
+    """Update an existing task"""
+    # Find the task
+    for i, task in enumerate(tasks_db):
+        if task.id == task_id:
+            # Update the task
+            updated_task = Task(
+                id=task.id,
+                title=task_update.title,
+                description=task_update.description,
+                completed=task_update.completed,
+                created_at=task.created_at  # Keep original creation time
+            )
+            tasks_db[i] = updated_task
+            return updated_task
+    
+    # If not found, return 404 error
+    raise HTTPException(status_code=404, detail="Task not found")
+```
+
+## Step 6: Delete Tasks (DELETE)
+
+Add this endpoint to delete tasks:
+
+```python
+@app.delete("/tasks/{task_id}")
+async def delete_task(task_id: int):
+    """Delete a task"""
+    # Find and remove the task
+    for i, task in enumerate(tasks_db):
+        if task.id == task_id:
+            deleted_task = tasks_db.pop(i)
+            return {"message": f"Task '{deleted_task.title}' deleted successfully"}
+    
+    # If not found, return 404 error
+    raise HTTPException(status_code=404, detail="Task not found")
+```
+
+## Complete Code
+
+Here's your complete `main.py` file:
+
+```python
+from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel
+from typing import Optional, List
+from datetime import datetime
+
+# Create the FastAPI app
+app = FastAPI(
+    title="Task Manager API",
+    description="A simple task manager API for learning FastAPI",
+    version="1.0.0"
+)
+
+# Data Models
+class TaskCreate(BaseModel):
+    """Model for creating a new task"""
+    title: str
+    description: Optional[str] = None
+    completed: bool = False
+
+class Task(BaseModel):
+    """Model representing a task with all fields"""
+    id: int
+    title: str
+    description: Optional[str] = None
+    completed: bool = False
+    created_at: datetime
+
+# In-memory storage
+tasks_db: List[Task] = []
+next_id = 1
+
+# Endpoints
+@app.get("/")
+async def read_root():
+    """Welcome message"""
+    return {"message": "Welcome to the Task Manager API!"}
+
+@app.post("/tasks", response_model=Task)
+async def create_task(task: TaskCreate):
+    """Create a new task"""
+    global next_id
+    
+    new_task = Task(
+        id=next_id,
+        title=task.title,
+        description=task.description,
+        completed=task.completed,
+        created_at=datetime.now()
+    )
+    
+    tasks_db.append(new_task)
+    next_id += 1
+    
+    return new_task
+
+@app.get("/tasks", response_model=List[Task])
+async def get_tasks():
+    """Get all tasks"""
+    return tasks_db
+
+@app.get("/tasks/{task_id}", response_model=Task)
+async def get_task(task_id: int):
+    """Get a specific task by ID"""
+    for task in tasks_db:
+        if task.id == task_id:
+            return task
+    
+    raise HTTPException(status_code=404, detail="Task not found")
+
+@app.put("/tasks/{task_id}", response_model=Task)
+async def update_task(task_id: int, task_update: TaskCreate):
+    """Update an existing task"""
+    for i, task in enumerate(tasks_db):
+        if task.id == task_id:
+            updated_task = Task(
+                id=task.id,
+                title=task_update.title,
+                description=task_update.description,
+                completed=task_update.completed,
+                created_at=task.created_at
+            )
+            tasks_db[i] = updated_task
+            return updated_task
+    
+    raise HTTPException(status_code=404, detail="Task not found")
+
+@app.delete("/tasks/{task_id}")
+async def delete_task(task_id: int):
+    """Delete a task"""
+    for i, task in enumerate(tasks_db):
+        if task.id == task_id:
+            deleted_task = tasks_db.pop(i)
+            return {"message": f"Task '{deleted_task.title}' deleted successfully"}
+    
+    raise HTTPException(status_code=404, detail="Task not found")
+```
+
+## Testing Your Complete API
+
+1. **Restart your server** (Ctrl+C to stop, then `uvicorn main:app --reload` again)
+
+2. **Go to the interactive docs** at `http://127.0.0.1:8000/docs`
+
+3. **Test each endpoint:**
+
+   **Create a task (POST /tasks):**
+   ```json
+   {
+     "title": "Learn FastAPI",
+     "description": "Complete the getting started tutorial",
+     "completed": false
+   }
+   ```
+
+   **List all tasks (GET /tasks):**
+   - Should show your created task
+
+   **Get specific task (GET /tasks/1):**
+   - Should show the task with ID 1
+
+   **Update task (PUT /tasks/1):**
+   ```json
+   {
+     "title": "Learn FastAPI",
+     "description": "Complete the getting started tutorial",
+     "completed": true
+   }
+   ```
+
+   **Delete task (DELETE /tasks/1):**
+   - Should remove the task
+
+## Understanding HTTP Status Codes
+
+Notice that FastAPI automatically returns the right status codes:
+
+- **200 OK**: Successful GET, PUT requests
+- **201 Created**: Successful POST requests (FastAPI sets this automatically)
+- **404 Not Found**: When we raise `HTTPException(status_code=404)`
+- **422 Unprocessable Entity**: When request data is invalid
+
+## What You've Learned
+
+🎉 **Congratulations!** You've built a complete CRUD API! You now understand:
+
+- ✅ How to create FastAPI endpoints with different HTTP methods
+- ✅ How to use Pydantic models for data validation
+- ✅ How to handle path parameters (`{task_id}`)
+- ✅ How to return appropriate error responses
+- ✅ How to test your API using the automatic documentation
+
+## Common Beginner Questions
+
+### Q: Why do we use `async def`?
+**A:** FastAPI supports both regular functions and async functions. Using `async` allows your API to handle multiple requests at the same time more efficiently. For simple operations like these, you could use regular `def` functions too.
+
+### Q: Where is the data stored?
+**A:** In this example, data is stored in memory (the `tasks_db` list). When you restart the server, all data is lost. In real applications, you'd use a database like PostgreSQL, MySQL, or MongoDB.
+
+### Q: What's the difference between TaskCreate and Task models?
+**A:** `TaskCreate` is for input (what users send when creating tasks), while `Task` is for output (what we send back, including ID and creation time). This separation is a best practice.
+
+### Q: Why use response_model?
+**A:** `response_model` tells FastAPI what the response should look like, enables automatic documentation, and provides data validation for responses.
+
+## What's Next?
+
+Now that you have a working API, you can:
+
+1. **Learn about [URI Design](/docs/01_getting-started/basic-uri-design)** - Make your endpoints even more intuitive
+2. **Explore [HTTP Methods](/docs/01_getting-started/basic-http-methods)** - Understand when to use each method
+3. **Move to [Foundation](/docs/02_foundation)** - Learn advanced concepts like databases, authentication, and testing
+
+## Challenge Yourself
+
+Try extending your API with these features:
+
+1. **Add filtering**: `GET /tasks?completed=true`
+2. **Add search**: `GET /tasks?search=FastAPI`
+3. **Add sorting**: `GET /tasks?sort=created_at`
+4. **Add a "mark complete" endpoint**: `POST /tasks/{task_id}/complete`
+
+Remember: The best way to learn is by doing. Experiment, make mistakes, and have fun building!
