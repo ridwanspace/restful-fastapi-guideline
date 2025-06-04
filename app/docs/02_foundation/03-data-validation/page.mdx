@@ -1,0 +1,411 @@
+# Data Validation
+
+Data validation is a cornerstone of building reliable APIs. FastAPI leverages Pydantic, a powerful data validation library, to ensure your API receives and returns data in the correct format. This automatic validation saves you from writing repetitive validation code and provides clear error messages when data doesn't meet expectations.
+
+## Why Data Validation Matters
+
+1. **Security**: Prevents malformed or malicious data from entering your system
+2. **Reliability**: Ensures your application works with expected data types
+3. **Documentation**: Pydantic models serve as living documentation
+4. **Developer Experience**: Clear error messages help API consumers fix issues quickly
+
+## Basic Pydantic Models
+
+Pydantic models are Python classes that inherit from `BaseModel`. They define the structure and validation rules for your data.
+
+```python
+from pydantic import BaseModel, Field
+from typing import Optional, List
+from datetime import datetime
+from enum import Enum
+
+class UserRole(str, Enum):
+    ADMIN = "admin"
+    USER = "user"
+    GUEST = "guest"
+
+class UserCreate(BaseModel):
+    username: str = Field(..., min_length=3, max_length=50, regex="^[a-zA-Z0-9_]+$")
+    email: str = Field(..., regex=r"^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$")
+    password: str = Field(..., min_length=8)
+    full_name: Optional[str] = Field(None, max_length=100)
+    age: Optional[int] = Field(None, ge=0, le=150)
+    role: UserRole = UserRole.USER
+    is_active: bool = True
+
+class UserResponse(BaseModel):
+    id: int
+    username: str
+    email: str
+    full_name: Optional[str]
+    role: UserRole
+    is_active: bool
+    created_at: datetime
+    
+    class Config:
+        orm_mode = True  # Allows compatibility with ORMs like SQLAlchemy
+```
+
+## Advanced Validation Techniques
+
+### Custom Validators
+
+Pydantic allows you to create custom validation logic for complex business rules:
+
+```python
+from pydantic import BaseModel, validator, root_validator
+from typing import List, Dict, Any
+
+class Product(BaseModel):
+    name: str
+    price: float
+    discount_percentage: float = 0
+    tags: List[str] = []
+    metadata: Dict[str, Any] = {}
+    
+    @validator('price')
+    def price_must_be_positive(cls, v):
+        if v <= 0:
+            raise ValueError('Price must be greater than 0')
+        return v
+    
+    @validator('discount_percentage')
+    def valid_discount(cls, v):
+        if not 0 <= v <= 100:
+            raise ValueError('Discount must be between 0 and 100')
+        return v
+    
+    @validator('tags')
+    def validate_tags(cls, v):
+        if len(v) > 10:
+            raise ValueError('Maximum 10 tags allowed')
+        # Remove duplicates and empty strings
+        return list(set(tag.strip().lower() for tag in v if tag.strip()))
+    
+    @root_validator
+    def validate_discount_price(cls, values):
+        price = values.get('price', 0)
+        discount = values.get('discount_percentage', 0)
+        if discount > 0 and price < 10:
+            raise ValueError('Discounts only allowed for products priced above $10')
+        return values
+
+    @property
+    def final_price(self) -> float:
+        return self.price * (1 - self.discount_percentage / 100)
+```
+
+### Nested Models
+
+Handle complex data structures with nested Pydantic models:
+
+```python
+class Address(BaseModel):
+    street: str
+    city: str
+    state: str
+    zip_code: str = Field(..., regex=r"^\d{5}(-\d{4})?$")
+    country: str = "USA"
+
+class ContactInfo(BaseModel):
+    phone: Optional[str] = Field(None, regex=r"^\+?1?\d{9,15}$")
+    email: str
+    address: Optional[Address] = None
+
+class Company(BaseModel):
+    name: str
+    tax_id: str
+    contact: ContactInfo
+    employees: int = Field(..., ge=1)
+    
+    class Config:
+        schema_extra = {
+            "example": {
+                "name": "Acme Corporation",
+                "tax_id": "12-3456789",
+                "contact": {
+                    "email": "contact@acme.com",
+                    "phone": "+1234567890",
+                    "address": {
+                        "street": "123 Main St",
+                        "city": "Anytown",
+                        "state": "CA",
+                        "zip_code": "12345"
+                    }
+                },
+                "employees": 100
+            }
+        }
+```
+
+## Validation in API Endpoints
+
+### Request Body Validation
+
+```python
+from fastapi import FastAPI, HTTPException
+from typing import List
+
+app = FastAPI()
+
+@app.post("/users", response_model=UserResponse)
+async def create_user(user: UserCreate):
+    # Check if username already exists
+    if user.username in existing_usernames:
+        raise HTTPException(
+            status_code=400,
+            detail="Username already exists"
+        )
+    
+    # Create user in database
+    new_user = create_user_in_db(user)
+    return new_user
+
+@app.post("/companies", response_model=Dict[str, Any])
+async def create_company(company: Company):
+    # Pydantic has already validated all fields
+    # including nested address and contact info
+    return {
+        "message": "Company created successfully",
+        "company_id": 12345,
+        "data": company.dict()
+    }
+```
+
+### List Validation
+
+```python
+class BulkUserCreate(BaseModel):
+    users: List[UserCreate] = Field(..., min_items=1, max_items=100)
+    notify: bool = True
+
+@app.post("/users/bulk")
+async def create_users_bulk(bulk: BulkUserCreate):
+    created_users = []
+    for user in bulk.users:
+        # Process each user
+        created_users.append(create_user_in_db(user))
+    
+    if bulk.notify:
+        # Send notifications
+        pass
+    
+    return {
+        "created": len(created_users),
+        "users": created_users
+    }
+```
+
+## Advanced Features
+
+### Field Aliases and Serialization
+
+```python
+class UserPublic(BaseModel):
+    user_id: int = Field(..., alias="id")
+    username: str
+    display_name: str = Field(..., alias="displayName")
+    
+    class Config:
+        allow_population_by_field_name = True
+        
+    def dict(self, **kwargs):
+        # Use aliases in response
+        kwargs['by_alias'] = True
+        return super().dict(**kwargs)
+```
+
+### Dynamic Model Creation
+
+```python
+from pydantic import create_model
+
+# Create models dynamically based on configuration
+def create_filter_model(fields: Dict[str, type]):
+    return create_model(
+        'DynamicFilter',
+        **{name: (Optional[field_type], None) for name, field_type in fields.items()}
+    )
+
+# Usage
+ProductFilter = create_filter_model({
+    'min_price': float,
+    'max_price': float,
+    'category': str,
+    'in_stock': bool
+})
+
+@app.get("/products")
+async def get_products(filters: ProductFilter = Depends()):
+    return apply_filters(filters.dict(exclude_none=True))
+```
+
+### Validation Context
+
+```python
+class PasswordReset(BaseModel):
+    email: str
+    token: str
+    new_password: str
+    confirm_password: str
+    
+    @root_validator
+    def passwords_match(cls, values):
+        password = values.get('new_password')
+        confirm = values.get('confirm_password')
+        if password != confirm:
+            raise ValueError('Passwords do not match')
+        return values
+    
+    @validator('token')
+    def validate_token(cls, v, values):
+        email = values.get('email')
+        if email and not verify_reset_token(email, v):
+            raise ValueError('Invalid or expired reset token')
+        return v
+```
+
+## Error Handling and Messages
+
+Pydantic provides detailed error messages when validation fails:
+
+```python
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request, exc):
+    return JSONResponse(
+        status_code=422,
+        content={
+            "detail": exc.errors(),
+            "body": exc.body,
+            "custom_message": "Validation failed. Please check your input."
+        }
+    )
+```
+
+Example error response:
+```json
+{
+  "detail": [
+    {
+      "loc": ["body", "email"],
+      "msg": "invalid email format",
+      "type": "value_error.email"
+    },
+    {
+      "loc": ["body", "age"],
+      "msg": "ensure this value is greater than or equal to 0",
+      "type": "value_error.number.not_ge",
+      "ctx": {"limit_value": 0}
+    }
+  ]
+}
+```
+
+## Best Practices
+
+### 1. Separate Input and Output Models
+```python
+# Input model (for creation)
+class UserCreate(BaseModel):
+    username: str
+    password: str  # Include sensitive fields
+    email: str
+
+# Output model (for responses)
+class UserResponse(BaseModel):
+    id: int
+    username: str
+    email: str
+    # Password is never returned
+```
+
+### 2. Use Descriptive Field Names and Documentation
+```python
+class OrderCreate(BaseModel):
+    customer_id: int = Field(
+        ...,
+        description="ID of the customer placing the order",
+        example=12345
+    )
+    items: List[OrderItem] = Field(
+        ...,
+        description="List of items in the order",
+        min_items=1
+    )
+    shipping_address: Address = Field(
+        ...,
+        description="Address where the order should be shipped"
+    )
+```
+
+### 3. Validate Business Logic Appropriately
+```python
+class TransferMoney(BaseModel):
+    from_account: str
+    to_account: str
+    amount: float = Field(..., gt=0, le=1000000)
+    
+    @root_validator
+    def validate_transfer(cls, values):
+        from_acc = values.get('from_account')
+        to_acc = values.get('to_account')
+        
+        if from_acc == to_acc:
+            raise ValueError('Cannot transfer to the same account')
+        
+        # Additional business logic validation
+        if not account_exists(from_acc):
+            raise ValueError('Source account does not exist')
+            
+        return values
+```
+
+## Performance Considerations
+
+### Use `.dict()` Efficiently
+```python
+# Exclude None values
+user_dict = user.dict(exclude_none=True)
+
+# Include only specific fields
+user_public = user.dict(include={'username', 'email'})
+
+# Exclude sensitive fields
+user_safe = user.dict(exclude={'password', 'secret_key'})
+```
+
+### Lazy Validation
+```python
+from pydantic import ValidationError
+
+# Validate multiple items efficiently
+def validate_users(user_data_list: List[dict]):
+    valid_users = []
+    errors = []
+    
+    for i, data in enumerate(user_data_list):
+        try:
+            user = UserCreate(**data)
+            valid_users.append(user)
+        except ValidationError as e:
+            errors.append({"index": i, "errors": e.errors()})
+    
+    return valid_users, errors
+```
+
+## Try It Yourself
+
+Create a comprehensive validation model for an e-commerce order:
+
+```python
+# Exercise: Create Pydantic models for an order system that includes:
+# - Order with multiple items
+# - Each item has quantity, price, and product reference
+# - Shipping and billing addresses
+# - Payment information (with appropriate security considerations)
+# - Order total calculation with tax
+# - Validation for stock availability
+# - Discount codes with validation rules
+```
+
+In the next section, we'll explore how to structure API responses effectively using response models.

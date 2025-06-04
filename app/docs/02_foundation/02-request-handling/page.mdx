@@ -1,0 +1,341 @@
+# Request Handling
+
+Mastering request handling is crucial for building flexible and user-friendly APIs. FastAPI provides powerful tools to handle various types of client requests with automatic validation and documentation.
+
+## Types of Request Parameters
+
+FastAPI supports four main types of parameters in your API endpoints:
+
+### 1. Path Parameters
+Path parameters are part of the URL path and are used to identify specific resources.
+
+```python
+from fastapi import FastAPI, Path
+from typing import Annotated
+
+app = FastAPI()
+
+@app.get("/users/{user_id}")
+async def get_user(
+    user_id: Annotated[int, Path(title="The ID of the user to get", ge=1)]
+):
+    return {"user_id": user_id, "name": f"User {user_id}"}
+
+# Multiple path parameters
+@app.get("/shops/{shop_id}/products/{product_id}")
+async def get_product(
+    shop_id: int,
+    product_id: int
+):
+    return {
+        "shop_id": shop_id,
+        "product_id": product_id,
+        "product_name": f"Product {product_id} from Shop {shop_id}"
+    }
+```
+
+### 2. Query Parameters
+Query parameters are optional parameters that appear after the `?` in the URL. They're perfect for filtering, sorting, and pagination.
+
+```python
+from fastapi import Query
+from typing import Optional, List
+
+@app.get("/products")
+async def list_products(
+    # Pagination parameters
+    skip: Annotated[int, Query(description="Number of items to skip")] = 0,
+    limit: Annotated[int, Query(description="Number of items to return", le=100)] = 10,
+    # Filtering parameters
+    category: Annotated[Optional[str], Query(description="Filter by category")] = None,
+    min_price: Annotated[Optional[float], Query(description="Minimum price", ge=0)] = None,
+    max_price: Annotated[Optional[float], Query(description="Maximum price", ge=0)] = None,
+    # Sorting parameters
+    sort_by: Annotated[str, Query(description="Field to sort by")] = "created_at",
+    order: Annotated[str, Query(description="Sort order", regex="^(asc|desc)$")] = "desc"
+):
+    # Build query based on parameters
+    query = {"skip": skip, "limit": limit}
+    if category:
+        query["category"] = category
+    if min_price is not None:
+        query["price_gte"] = min_price
+    if max_price is not None:
+        query["price_lte"] = max_price
+    
+    return {
+        "query": query,
+        "sort": {"field": sort_by, "order": order},
+        "results": []  # Would contain actual products
+    }
+
+# Query parameters with lists
+@app.get("/search")
+async def search_items(
+    tags: Annotated[List[str], Query(description="Tags to filter by")] = []
+):
+    return {"tags": tags, "results": []}  # URL: /search?tags=python&tags=fastapi
+```
+
+### 3. Request Body
+For complex data, especially in POST and PUT requests, use request bodies with Pydantic models.
+
+```python
+from pydantic import BaseModel, Field
+from datetime import datetime
+from enum import Enum
+
+class ProductCategory(str, Enum):
+    ELECTRONICS = "electronics"
+    CLOTHING = "clothing"
+    FOOD = "food"
+    BOOKS = "books"
+
+class ProductCreate(BaseModel):
+    name: str = Field(..., min_length=1, max_length=100)
+    description: Optional[str] = Field(None, max_length=500)
+    price: float = Field(..., gt=0, description="Price must be greater than 0")
+    category: ProductCategory
+    tags: List[str] = Field(default_factory=list, max_items=10)
+    in_stock: bool = True
+
+@app.post("/products")
+async def create_product(product: ProductCreate):
+    # Validate and process the product
+    return {
+        "id": 123,
+        "created_at": datetime.utcnow(),
+        **product.dict()
+    }
+
+# Combining body with other parameters
+@app.put("/products/{product_id}")
+async def update_product(
+    product_id: int,
+    product: ProductCreate,
+    update_stock: Annotated[bool, Query(description="Update stock status")] = True
+):
+    return {
+        "id": product_id,
+        "updated": True,
+        "update_stock": update_stock,
+        "product": product
+    }
+```
+
+### 4. Headers and Cookies
+Access HTTP headers and cookies for authentication, content negotiation, and tracking.
+
+```python
+from fastapi import Header, Cookie, HTTPException
+
+@app.get("/secure-data")
+async def get_secure_data(
+    # Headers
+    user_agent: Annotated[Optional[str], Header()] = None,
+    x_api_key: Annotated[str, Header(description="API Key for authentication")] = None,
+    # Cookies
+    session_id: Annotated[Optional[str], Cookie()] = None
+):
+    # Validate API key
+    if not x_api_key or x_api_key != "secret-key-123":
+        raise HTTPException(status_code=401, detail="Invalid API key")
+    
+    return {
+        "user_agent": user_agent,
+        "session_id": session_id,
+        "data": "This is secure data"
+    }
+
+# Custom headers in response
+@app.get("/custom-headers")
+async def custom_headers(
+    response: Response
+):
+    response.headers["X-Custom-Header"] = "Custom value"
+    response.headers["X-Process-Time"] = "0.05"
+    return {"message": "Check the response headers!"}
+```
+
+## Advanced Request Handling Patterns
+
+### File Uploads
+```python
+from fastapi import File, UploadFile
+
+@app.post("/upload")
+async def upload_file(
+    file: Annotated[UploadFile, File(description="File to upload")],
+    description: Annotated[Optional[str], Form()] = None
+):
+    return {
+        "filename": file.filename,
+        "content_type": file.content_type,
+        "description": description
+    }
+
+# Multiple file uploads
+@app.post("/upload-multiple")
+async def upload_multiple(
+    files: List[UploadFile] = File(...)
+):
+    return {
+        "filenames": [file.filename for file in files],
+        "count": len(files)
+    }
+```
+
+### Request Validation with Dependencies
+```python
+from fastapi import Depends
+
+def pagination_params(
+    page: int = Query(1, ge=1, description="Page number"),
+    size: int = Query(10, ge=1, le=100, description="Page size")
+) -> dict:
+    return {"skip": (page - 1) * size, "limit": size}
+
+@app.get("/items")
+async def read_items(pagination: dict = Depends(pagination_params)):
+    return {
+        "pagination": pagination,
+        "items": []  # Would fetch items using pagination
+    }
+```
+
+## Best Practices for Request Handling
+
+### 1. Use Meaningful Parameter Names
+```python
+# Good
+@app.get("/users/{user_id}/posts")
+async def get_user_posts(
+    user_id: int,
+    include_drafts: bool = False,
+    sort_by: str = "created_at"
+):
+    pass
+
+# Bad
+@app.get("/users/{id}/posts")
+async def get_posts(id: int, d: bool = False, s: str = "date"):
+    pass
+```
+
+### 2. Validate Early and Clearly
+```python
+@app.post("/orders")
+async def create_order(
+    order: OrderCreate,
+    user_id: Annotated[int, Header(alias="X-User-ID")]
+):
+    # Validate business logic
+    if order.total_amount > 10000:
+        raise HTTPException(
+            status_code=400,
+            detail="Order amount exceeds maximum allowed value"
+        )
+    
+    # Process order
+    return {"order_id": 12345, "status": "created"}
+```
+
+### 3. Document Your Parameters
+```python
+@app.get(
+    "/search",
+    summary="Search products",
+    description="Search for products with various filters"
+)
+async def search_products(
+    q: Annotated[
+        str,
+        Query(
+            min_length=3,
+            description="Search query. Searches in product name and description.",
+            example="laptop"
+        )
+    ],
+    in_stock_only: Annotated[
+        bool,
+        Query(
+            description="Only return products that are currently in stock",
+            example=True
+        )
+    ] = False
+):
+    pass
+```
+
+### 4. Handle Optional Parameters Gracefully
+```python
+@app.get("/products/{product_id}/reviews")
+async def get_product_reviews(
+    product_id: int,
+    rating: Optional[int] = Query(None, ge=1, le=5),
+    verified_only: bool = False
+):
+    filters = {"product_id": product_id}
+    
+    if rating is not None:
+        filters["rating"] = rating
+    
+    if verified_only:
+        filters["verified"] = True
+    
+    # Apply filters to query
+    return {"filters": filters, "reviews": []}
+```
+
+## Common Pitfalls and Solutions
+
+### Pitfall 1: Forgetting Default Values
+```python
+# Bad - will require all parameters
+@app.get("/search")
+async def search(q: str, category: str, min_price: float):
+    pass
+
+# Good - optional parameters have defaults
+@app.get("/search")
+async def search(
+    q: str,
+    category: Optional[str] = None,
+    min_price: float = 0
+):
+    pass
+```
+
+### Pitfall 2: Not Validating String Enums
+```python
+# Bad - accepts any string
+@app.get("/products")
+async def get_products(sort_order: str):
+    pass
+
+# Good - validates against allowed values
+class SortOrder(str, Enum):
+    ASC = "asc"
+    DESC = "desc"
+
+@app.get("/products")
+async def get_products(sort_order: SortOrder = SortOrder.DESC):
+    pass
+```
+
+## Try It Yourself
+
+Create an endpoint that handles a complex search with multiple parameter types:
+
+```python
+# Exercise: Create a product search endpoint that supports:
+# - Text search (query parameter)
+# - Price range filtering (query parameters)
+# - Category filtering (query parameter with enum)
+# - Pagination (query parameters)
+# - Sorting (query parameters)
+# - Authentication (header)
+# - Response format preference (header)
+```
+
+In the next section, we'll explore how to validate complex data structures using Pydantic models.
