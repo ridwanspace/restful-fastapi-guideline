@@ -1,0 +1,223 @@
+# HTTP Status Codes
+
+## Complete Status Code Reference
+
+Use appropriate HTTP status codes for different scenarios:
+
+```python
+from fastapi import FastAPI, HTTPException, status, Request, Depends
+from fastapi.responses import Response, JSONResponse
+from pydantic import BaseModel
+from typing import Optional
+
+# 2xx Success Codes
+@app.post("/users", status_code=status.HTTP_201_CREATED)
+async def create_user_201(user_data: dict):
+    """201: Created - Resource successfully created"""
+    return {"id": 123, "message": "User created successfully"}
+
+@app.get("/users/{user_id}")
+async def get_user_200(user_id: int):
+    """200: OK - Request successful with response body"""
+    return {"id": user_id, "name": "John"}
+
+@app.delete("/users/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_user_204(user_id: int):
+    """204: No Content - Successful deletion, no response body"""
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+@app.patch("/users/{user_id}")
+async def update_user_202(user_id: int, user_data: dict):
+    """202: Accepted - Request accepted for async processing"""
+    # Trigger background processing
+    return {
+        "message": "Update request accepted",
+        "task_id": "task_123",
+        "status_url": f"/tasks/task_123/status"
+    }
+
+# 3xx Redirection Codes
+@app.get("/users/{user_id}/redirect")
+async def redirect_user_301(user_id: int):
+    """301: Moved Permanently - Resource permanently moved"""
+    return JSONResponse(
+        status_code=status.HTTP_301_MOVED_PERMANENTLY,
+        headers={"Location": f"/api/v2/users/{user_id}"},
+        content={"message": "Resource moved permanently"}
+    )
+
+@app.get("/users/{user_id}/temp-redirect")
+async def redirect_user_302(user_id: int):
+    """302: Found - Temporary redirect"""
+    return JSONResponse(
+        status_code=status.HTTP_302_FOUND,
+        headers={"Location": f"/users/{user_id}/profile"},
+        content={"message": "Temporarily redirected"}
+    )
+
+@app.get("/users/{user_id}/cached")
+async def get_user_304(user_id: int, request: Request):
+    """304: Not Modified - Resource unchanged, use cached version"""
+    if_none_match = request.headers.get("If-None-Match")
+    current_etag = f'"{user_id}-v1"'
+    
+    if if_none_match == current_etag:
+        return Response(status_code=status.HTTP_304_NOT_MODIFIED)
+    
+    return JSONResponse(
+        content={"id": user_id, "name": "John"},
+        headers={"ETag": current_etag}
+    )
+
+# 4xx Client Error Codes
+@app.get("/users/bad-request")
+async def bad_request_400():
+    """400: Bad Request - Invalid request format"""
+    raise HTTPException(
+        status_code=status.HTTP_400_BAD_REQUEST,
+        detail={
+            "error": "INVALID_REQUEST",
+            "message": "Request body contains invalid JSON",
+            "details": ["Missing required field: 'email'"]
+        }
+    )
+
+@app.get("/users/unauthorized")
+async def unauthorized_401():
+    """401: Unauthorized - Authentication required"""
+    raise HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Authentication required",
+        headers={"WWW-Authenticate": "Bearer"}
+    )
+
+@app.get("/users/forbidden")
+async def forbidden_403():
+    """403: Forbidden - Access denied"""
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail={
+            "error": "ACCESS_DENIED",
+            "message": "Insufficient permissions to access this resource"
+        }
+    )
+
+@app.get("/users/not-found/{user_id}")
+async def not_found_404(user_id: int):
+    """404: Not Found - Resource doesn't exist"""
+    raise HTTPException(
+        status_code=status.HTTP_404_NOT_FOUND,
+        detail={
+            "error": "RESOURCE_NOT_FOUND",
+            "message": f"User with ID {user_id} not found",
+            "resource_type": "user",
+            "resource_id": str(user_id)
+        }
+    )
+
+@app.put("/users/{user_id}/conflict")
+async def conflict_409(user_id: int):
+    """409: Conflict - Request conflicts with current state"""
+    raise HTTPException(
+        status_code=status.HTTP_409_CONFLICT,
+        detail={
+            "error": "RESOURCE_CONFLICT",
+            "message": "Email address already exists",
+            "conflicting_field": "email"
+        }
+    )
+
+@app.post("/users/unprocessable")
+async def unprocessable_422():
+    """422: Unprocessable Entity - Validation errors"""
+    raise HTTPException(
+        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        detail={
+            "error": "VALIDATION_ERROR",
+            "message": "Request validation failed",
+            "validation_errors": [
+                {
+                    "field": "email",
+                    "message": "Invalid email format",
+                    "code": "INVALID_EMAIL"
+                },
+                {
+                    "field": "age",
+                    "message": "Must be between 18 and 120",
+                    "code": "OUT_OF_RANGE"
+                }
+            ]
+        }
+    )
+
+@app.get("/users/rate-limited")
+async def rate_limited_429():
+    """429: Too Many Requests - Rate limit exceeded"""
+    raise HTTPException(
+        status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+        detail={
+            "error": "RATE_LIMIT_EXCEEDED",
+            "message": "Too many requests",
+            "retry_after": 60
+        },
+        headers={"Retry-After": "60"}
+    )
+
+# 5xx Server Error Codes
+@app.get("/users/server-error")
+async def server_error_500():
+    """500: Internal Server Error - Unexpected server error"""
+    raise HTTPException(
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        detail={
+            "error": "INTERNAL_SERVER_ERROR",
+            "message": "An unexpected error occurred",
+            "error_id": "err_123456"
+        }
+    )
+
+@app.get("/users/bad-gateway")
+async def bad_gateway_502():
+    """502: Bad Gateway - Upstream service error"""
+    raise HTTPException(
+        status_code=status.HTTP_502_BAD_GATEWAY,
+        detail={
+            "error": "UPSTREAM_SERVICE_ERROR",
+            "message": "Database service unavailable",
+            "service": "user_database"
+        }
+    )
+
+@app.get("/users/service-unavailable")
+async def service_unavailable_503():
+    """503: Service Unavailable - Temporary service unavailability"""
+    raise HTTPException(
+        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        detail={
+            "error": "SERVICE_UNAVAILABLE",
+            "message": "Service temporarily unavailable due to maintenance",
+            "estimated_recovery": "2024-01-15T14:00:00Z"
+        },
+        headers={"Retry-After": "3600"}
+    )
+```
+
+## Status Code Decision Matrix
+
+| Scenario | Status Code | Use Case |
+|----------|-------------|----------|
+| Resource created successfully | 201 | POST operations creating new resources |
+| Request successful with data | 200 | GET, PUT, PATCH operations |
+| Request successful, no content | 204 | DELETE operations, some PUT operations |
+| Async processing accepted | 202 | Long-running operations |
+| Invalid request syntax | 400 | Malformed JSON, missing required headers |
+| Authentication required | 401 | Missing or invalid authentication |
+| Access forbidden | 403 | Valid auth but insufficient permissions |
+| Resource not found | 404 | GET, PUT, DELETE on non-existent resource |
+| Method not allowed | 405 | Using POST on read-only endpoint |
+| Request conflicts with state | 409 | Duplicate creation, version conflicts |
+| Validation failed | 422 | Valid syntax but business rule violations |
+| Rate limit exceeded | 429 | Too many requests from client |
+| Server error | 500 | Unexpected application errors |
+| Upstream service error | 502 | Database or external service failures |
+| Service unavailable | 503 | Maintenance mode, overloaded |

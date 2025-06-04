@@ -1,0 +1,139 @@
+# API Versioning Strategies
+
+## URL Versioning
+
+The most explicit and widely adopted versioning strategy:
+
+```python
+from fastapi import FastAPI, APIRouter
+from typing import Optional
+
+# Version-specific routers
+v1_router = APIRouter(prefix="/api/v1", tags=["v1"])
+v2_router = APIRouter(prefix="/api/v2", tags=["v2"])
+
+@v1_router.get("/users/{user_id}")
+async def get_user_v1(user_id: int):
+    """Version 1: Returns basic user info"""
+    return {"id": user_id, "name": "John", "email": "john@example.com"}
+
+@v2_router.get("/users/{user_id}")
+async def get_user_v2(user_id: int):
+    """Version 2: Returns enhanced user info with new fields"""
+    return {
+        "id": user_id,
+        "profile": {
+            "name": "John",
+            "email": "john@example.com",
+            "preferences": {"theme": "dark", "notifications": True}
+        },
+        "metadata": {"last_login": "2024-01-15T10:30:00Z"}
+    }
+
+app = FastAPI()
+app.include_router(v1_router)
+app.include_router(v2_router)
+```
+
+## Header Versioning
+
+Use custom headers or Accept headers for versioning:
+
+```python
+from fastapi import FastAPI, Header, HTTPException
+from typing import Optional
+
+@app.get("/users/{user_id}")
+async def get_user_versioned(
+    user_id: int,
+    api_version: Optional[str] = Header(None, alias="API-Version"),
+    accept: Optional[str] = Header(None)
+):
+    """
+    Version handling through headers
+    Supports both API-Version header and Accept header
+    """
+    version = "1.0"  # default
+    
+    if api_version:
+        version = api_version
+    elif accept and "application/vnd.api+json" in accept:
+        # Parse version from Accept header
+        # application/vnd.api+json;version=2.0
+        pass
+    
+    if version == "1.0":
+        return {"id": user_id, "name": "John"}
+    elif version == "2.0":
+        return {"id": user_id, "profile": {"name": "John"}}
+    else:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unsupported API version: {version}"
+        )
+```
+
+## Content Negotiation Versioning
+
+Use media types to specify API version:
+
+```python
+from fastapi import FastAPI, Request, HTTPException
+from fastapi.responses import JSONResponse
+
+@app.get("/users/{user_id}")
+async def get_user_content_negotiation(user_id: int, request: Request):
+    """Version through Accept header media type"""
+    accept_header = request.headers.get("accept", "")
+    
+    if "application/vnd.myapi.v1+json" in accept_header:
+        return JSONResponse(
+            content={"id": user_id, "name": "John"},
+            media_type="application/vnd.myapi.v1+json"
+        )
+    elif "application/vnd.myapi.v2+json" in accept_header:
+        return JSONResponse(
+            content={"id": user_id, "profile": {"name": "John"}},
+            media_type="application/vnd.myapi.v2+json"
+        )
+    else:
+        # Default to latest version
+        return {"id": user_id, "profile": {"name": "John"}}
+```
+
+## Deprecation Strategy
+
+Implement graceful deprecation with clear timelines:
+
+```python
+from fastapi import FastAPI, Header, Depends
+from fastapi.responses import JSONResponse
+import warnings
+from datetime import datetime, timedelta
+
+def deprecation_warning(
+    api_version: Optional[str] = Header(None, alias="API-Version")
+):
+    """Dependency to handle deprecation warnings"""
+    if api_version == "1.0":
+        deprecation_date = datetime(2024, 6, 1)
+        sunset_date = datetime(2024, 12, 1)
+        
+        return {
+            "Deprecation": f"version=1.0, date={deprecation_date.isoformat()}",
+            "Sunset": sunset_date.isoformat(),
+            "Link": '</api/v2/users>; rel="successor-version"'
+        }
+    return {}
+
+@app.get("/users")
+async def get_users(deprecation_headers: dict = Depends(deprecation_warning)):
+    """Endpoint with deprecation handling"""
+    response = JSONResponse(content={"users": []})
+    
+    # Add deprecation headers
+    for header, value in deprecation_headers.items():
+        response.headers[header] = value
+    
+    return response
+```

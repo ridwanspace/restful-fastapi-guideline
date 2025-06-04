@@ -1,0 +1,120 @@
+# URI Design & Naming Conventions
+
+## Resource Naming Principles
+
+RESTful URIs should represent resources (nouns) rather than actions (verbs). Use plural nouns for collections and singular nouns only when referring to a specific singleton resource or when the resource inherently represents a single entity.
+
+**Core Rules:**
+- Use lowercase letters with hyphens for multi-word resources
+- Prefer plural nouns for collections: `/users`, `/orders`, `/products`
+- Use nouns, not verbs: `/users` not `/getUsers`
+- Be consistent across your entire API
+
+## Hierarchy and Nested Resources
+
+Design URI hierarchies that reflect logical relationships between resources. Limit nesting to 2-3 levels to maintain clarity and avoid overly complex paths.
+
+```python
+from fastapi import FastAPI, Path, Query
+from typing import List, Optional
+from pydantic import BaseModel
+
+app = FastAPI()
+
+# Good: Clear hierarchy representing relationships
+@app.get("/users/{user_id}/orders/{order_id}/items")
+async def get_order_items(
+    user_id: int = Path(..., description="User identifier"),
+    order_id: int = Path(..., description="Order identifier")
+):
+    """Retrieve items for a specific user's order"""
+    pass
+
+# Good: Flat structure for independent resources
+@app.get("/products")
+async def get_products(
+    category: Optional[str] = Query(None),
+    brand: Optional[str] = Query(None)
+):
+    """Retrieve products with optional filtering"""
+    pass
+```
+
+## URI Design Examples
+
+| ✅ Good Examples | Description |
+|-----------------|-------------|
+| `GET /api/v1/users` | Retrieve all users |
+| `POST /api/v1/users` | Create a new user |
+| `GET /api/v1/users/123` | Retrieve user with ID 123 |
+| `PUT /api/v1/users/123/profile` | Update user's profile |
+| `GET /api/v1/orders?status=pending` | Filter orders by status |
+
+| ❌ Bad Examples | Problem |
+|----------------|---------|
+| `GET /api/v1/getUsers` | Uses verb instead of noun |
+| `POST /api/v1/user` | Inconsistent singular/plural usage |
+| `GET /api/v1/users/123/orders/456/items/789/details/shipping` | Too deeply nested |
+| `DELETE /api/v1/deleteUserById/123` | Redundant verb and inconsistent pattern |
+| `GET /api/v1/Users` | Inconsistent capitalization |
+
+## Path Parameters vs Query Parameters
+
+**Path Parameters**: Use for resource identification and hierarchical relationships.
+**Query Parameters**: Use for filtering, sorting, pagination, and optional modifiers.
+
+```python
+from fastapi import FastAPI, Path, Query, Depends
+from typing import Optional
+from enum import Enum
+
+class SortOrder(str, Enum):
+    asc = "asc"
+    desc = "desc"
+
+@app.get("/users/{user_id}/orders")
+async def get_user_orders(
+    user_id: int = Path(..., ge=1, description="User ID"),
+    status: Optional[str] = Query(None, regex="^(pending|completed|cancelled)$"),
+    limit: int = Query(10, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+    sort_by: str = Query("created_at", regex="^(created_at|total_amount|status)$"),
+    sort_order: SortOrder = Query(SortOrder.desc)
+):
+    """
+    Retrieve orders for a specific user with filtering and pagination
+    
+    Path parameter: user_id (resource identifier)
+    Query parameters: filtering, pagination, sorting options
+    """
+    pass
+```
+
+## Special Characters and Encoding
+
+Handle special characters consistently and provide clear encoding guidelines:
+
+```python
+from fastapi import FastAPI, Query
+from urllib.parse import unquote
+import re
+
+@app.get("/search")
+async def search_resources(
+    q: str = Query(..., min_length=1, max_length=100, description="Search query"),
+    category: Optional[str] = Query(None, regex="^[a-zA-Z0-9_-]+$")
+):
+    """
+    Search with proper encoding handling
+    - Spaces should be URL encoded as %20 or +
+    - Special characters must be properly encoded
+    - Server automatically decodes URL-encoded parameters
+    """
+    # FastAPI automatically handles URL decoding
+    decoded_query = unquote(q)  # Additional decoding if needed
+    pass
+
+# Example valid requests:
+# GET /search?q=hello%20world&category=electronics
+# GET /search?q=user%40example.com
+```

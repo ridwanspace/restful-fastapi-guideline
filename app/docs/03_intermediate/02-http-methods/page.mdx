@@ -1,0 +1,143 @@
+# HTTP Methods & Semantic Usage
+
+## CRUD Operation Mapping
+
+Each HTTP method has specific semantics that must be respected for predictable API behavior:
+
+```python
+from fastapi import FastAPI, HTTPException, status
+from pydantic import BaseModel
+from typing import List, Optional
+
+class UserCreate(BaseModel):
+    username: str
+    email: str
+    full_name: str
+
+class UserUpdate(BaseModel):
+    email: Optional[str] = None
+    full_name: Optional[str] = None
+
+class User(BaseModel):
+    id: int
+    username: str
+    email: str
+    full_name: str
+    created_at: str
+
+@app.post("/users", status_code=status.HTTP_201_CREATED, response_model=User)
+async def create_user(user_data: UserCreate):
+    """CREATE: Add new resource, return 201 with created resource"""
+    # Implementation creates new user
+    pass
+
+@app.get("/users/{user_id}", response_model=User)
+async def get_user(user_id: int):
+    """READ: Retrieve specific resource, return 200 or 404"""
+    pass
+
+@app.put("/users/{user_id}", response_model=User)
+async def update_user(user_id: int, user_data: UserUpdate):
+    """UPDATE: Replace entire resource, return 200 or 404"""
+    pass
+
+@app.patch("/users/{user_id}", response_model=User)
+async def partial_update_user(user_id: int, user_data: UserUpdate):
+    """PARTIAL UPDATE: Modify specific fields, return 200 or 404"""
+    pass
+
+@app.delete("/users/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_user(user_id: int):
+    """DELETE: Remove resource, return 204 or 404"""
+    pass
+```
+
+## Idempotency and Safety
+
+Understanding idempotency and safety is crucial for reliable API design:
+
+**Safe Methods** (no side effects): GET, HEAD, OPTIONS
+**Idempotent Methods** (same result on multiple calls): GET, PUT, DELETE, HEAD, OPTIONS
+**Non-idempotent Methods**: POST, PATCH
+
+```python
+from fastapi import FastAPI, HTTPException, Header
+from typing import Optional
+import uuid
+
+@app.put("/users/{user_id}/status")
+async def update_user_status(
+    user_id: int,
+    status: str,
+    idempotency_key: Optional[str] = Header(None, alias="Idempotency-Key")
+):
+    """
+    Idempotent operation - multiple identical requests have same effect
+    Optional idempotency key for additional safety
+    """
+    # Check if operation was already performed with this key
+    if idempotency_key:
+        # Implementation checks for duplicate operations
+        pass
+    pass
+
+@app.post("/orders")
+async def create_order(
+    order_data: dict,
+    idempotency_key: str = Header(..., alias="Idempotency-Key")
+):
+    """
+    Non-idempotent operation made safer with required idempotency key
+    Prevents duplicate order creation
+    """
+    pass
+```
+
+## Bulk Operations
+
+Handle bulk operations efficiently while maintaining clear semantics:
+
+```python
+from fastapi import FastAPI, HTTPException, status
+from pydantic import BaseModel
+from typing import List, Dict, Union
+
+class BulkUserCreate(BaseModel):
+    users: List[UserCreate]
+
+class BulkOperationResult(BaseModel):
+    successful: List[Dict[str, Union[int, str]]]
+    failed: List[Dict[str, Union[int, str, List[str]]]]
+    total_processed: int
+
+@app.post("/users/bulk", response_model=BulkOperationResult)
+async def bulk_create_users(bulk_data: BulkUserCreate):
+    """
+    Bulk creation with detailed results
+    Returns both successful and failed operations
+    """
+    results = BulkOperationResult(successful=[], failed=[], total_processed=0)
+    
+    for user_data in bulk_data.users:
+        try:
+            # Process each user
+            results.successful.append({"id": 123, "username": user_data.username})
+        except Exception as e:
+            results.failed.append({
+                "username": user_data.username,
+                "errors": [str(e)]
+            })
+        results.total_processed += 1
+    
+    return results
+
+@app.patch("/users/bulk")
+async def bulk_update_users(updates: List[Dict[str, Union[int, Dict]]]):
+    """Bulk updates with partial success handling"""
+    pass
+
+@app.delete("/users/bulk")
+async def bulk_delete_users(user_ids: List[int]):
+    """Bulk deletion with confirmation"""
+    pass
+```

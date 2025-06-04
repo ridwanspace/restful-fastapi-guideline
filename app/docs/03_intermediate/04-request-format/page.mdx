@@ -1,0 +1,218 @@
+# Request Format Standards
+
+## Content-Type Handling
+
+Handle different content types appropriately:
+
+```python
+from fastapi import FastAPI, File, UploadFile, Form, HTTPException
+from fastapi.responses import JSONResponse
+from pydantic import BaseModel
+from typing import Optional, List
+import json
+
+class UserProfile(BaseModel):
+    name: str
+    bio: Optional[str] = None
+    tags: List[str] = []
+
+@app.post("/users/profile")
+async def create_profile_json(profile: UserProfile):
+    """Handle JSON content (Content-Type: application/json)"""
+    return {"message": "Profile created", "profile": profile}
+
+@app.post("/users/profile-form")
+async def create_profile_form(
+    name: str = Form(...),
+    bio: Optional[str] = Form(None),
+    tags: str = Form("[]")  # JSON string for complex types
+):
+    """Handle form data (Content-Type: application/x-www-form-urlencoded)"""
+    try:
+        parsed_tags = json.loads(tags)
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=400, detail="Invalid tags format")
+    
+    return {"message": "Profile created", "name": name, "bio": bio, "tags": parsed_tags}
+
+@app.post("/users/profile-multipart")
+async def create_profile_multipart(
+    name: str = Form(...),
+    bio: Optional[str] = Form(None),
+    avatar: Optional[UploadFile] = File(None),
+    documents: List[UploadFile] = File(default=[])
+):
+    """Handle multipart data (Content-Type: multipart/form-data)"""
+    result = {"name": name, "bio": bio}
+    
+    if avatar:
+        # Validate file type and size
+        if not avatar.content_type.startswith("image/"):
+            raise HTTPException(status_code=400, detail="Avatar must be an image")
+        
+        if avatar.size > 5 * 1024 * 1024:  # 5MB limit
+            raise HTTPException(status_code=400, detail="Avatar too large")
+        
+        result["avatar"] = {"filename": avatar.filename, "size": avatar.size}
+    
+    result["documents"] = [
+        {"filename": doc.filename, "size": doc.size} 
+        for doc in documents
+    ]
+    
+    return result
+```
+
+## Request Body Structure
+
+Design consistent payload structures:
+
+```python
+from pydantic import BaseModel, Field, validator
+from typing import Optional, Dict, Any, List
+from datetime import datetime
+from enum import Enum
+
+class Priority(str, Enum):
+    low = "low"
+    medium = "medium"
+    high = "high"
+
+class CreateOrderRequest(BaseModel):
+    """Consistent request structure with validation"""
+    
+    # Required fields
+    customer_id: int = Field(..., gt=0, description="Customer identifier")
+    items: List[Dict[str, Any]] = Field(..., min_items=1, description="Order items")
+    
+    # Optional fields with defaults
+    priority: Priority = Field(Priority.medium, description="Order priority")
+    notes: Optional[str] = Field(None, max_length=500, description="Additional notes")
+    metadata: Optional[Dict[str, str]] = Field(default_factory=dict)
+    
+    # Nested objects
+    shipping_address: Dict[str, str] = Field(..., description="Shipping information")
+    billing_address: Optional[Dict[str, str]] = Field(None, description="Billing information")
+    
+    @validator('items')
+    def validate_items(cls, v):
+        """Custom validation for items structure"""
+        for item in v:
+            required_fields = ['product_id', 'quantity', 'price']
+            if not all(field in item for field in required_fields):
+                raise ValueError(f"Each item must have: {required_fields}")
+            
+            if item['quantity'] <= 0:
+                raise ValueError("Quantity must be positive")
+                
+        return v
+    
+    @validator('shipping_address')
+    def validate_address(cls, v):
+        """Validate address structure"""
+        required_fields = ['street', 'city', 'postal_code', 'country']
+        if not all(field in v for field in required_fields):
+            raise ValueError(f"Address must have: {required_fields}")
+        return v
+
+@app.post("/orders")
+async def create_order(order: CreateOrderRequest):
+    """Create order with validated request structure"""
+    return {"message": "Order created", "order_id": 12345}
+```
+
+## File Upload Best Practices
+
+Handle file uploads securely and efficiently:
+
+```python
+from fastapi import FastAPI, File, UploadFile, HTTPException, Form
+from fastapi.responses import JSONResponse
+import magic
+import uuid
+import os
+from pathlib import Path
+
+ALLOWED_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.gif', '.pdf', '.docx'}
+MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
+
+async def validate_file(file: UploadFile) -> dict:
+    """Comprehensive file validation"""
+    if not file.filename:
+        raise HTTPException(status_code=400, detail="No filename provided")
+    
+    # Check file extension
+    file_ext = Path(file.filename).suffix.lower()
+    if file_ext not in ALLOWED_EXTENSIONS:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"File type not allowed. Allowed: {ALLOWED_EXTENSIONS}"
+        )
+    
+    # Check file size
+    if file.size > MAX_FILE_SIZE:
+        raise HTTPException(
+            status_code=413, 
+            detail=f"File too large. Max size: {MAX_FILE_SIZE} bytes"
+        )
+    
+    # Validate MIME type (requires python-magic)
+    content = await file.read()
+    await file.seek(0)  # Reset file pointer
+    
+    detected_type = magic.from_buffer(content, mime=True)
+    expected_types = {
+        '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg',
+        '.png': 'image/png', '.gif': 'image/gif',
+        '.pdf': 'application/pdf'
+    }
+    
+    if file_ext in expected_types and detected_type != expected_types[file_ext]:
+        raise HTTPException(
+            status_code=400,
+            detail="File content doesn't match extension"
+        )
+    
+    return {
+        "filename": file.filename,
+        "size": file.size,
+        "mime_type": detected_type,
+        "extension": file_ext
+    }
+
+@app.post("/documents/upload")
+async def upload_document(
+    category: str = Form(...),
+    description: Optional[str] = Form(None),
+    file: UploadFile = File(...),
+    tags: str = Form("[]")  # JSON array as string
+):
+    """Secure file upload with validation"""
+    
+    # Validate file
+    file_info = await validate_file(file)
+    
+    # Generate secure filename
+    secure_filename = f"{uuid.uuid4()}{file_info['extension']}"
+    
+    # Parse tags
+    try:
+        parsed_tags = json.loads(tags)
+    except json.JSONDecodeError:
+        parsed_tags = []
+    
+    # In production, save to cloud storage or secure file system
+    # For example: AWS S3, Google Cloud Storage, etc.
+    
+    return {
+        "document_id": str(uuid.uuid4()),
+        "original_filename": file_info["filename"],
+        "stored_filename": secure_filename,
+        "size": file_info["size"],
+        "mime_type": file_info["mime_type"],
+        "category": category,
+        "description": description,
+        "tags": parsed_tags,
+        "upload_url": f"/documents/{secure_filename}"
+    }
+```
