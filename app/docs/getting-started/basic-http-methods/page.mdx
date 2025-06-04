@@ -1,0 +1,82 @@
+# Basic HTTP Methods
+
+HTTP methods, also known as HTTP verbs, define the action to be performed on a resource identified by a URI. FastAPI uses these methods directly in its path operation decorators (e.g., `@app.get()`, `@app.post()`).
+
+Here are the most commonly used HTTP methods in the context of RESTful APIs:
+
+-   **`GET`**: Retrieve a representation of a resource. This method should be safe (not have side effects) and idempotent (multiple identical requests should have the same effect as a single request). For example, fetching user details or a list of products.
+-   **`POST`**: Create a new resource. This method is often used to submit data to be processed to the identified resource, such as creating a new user account or posting a message. `POST` requests are typically not safe or idempotent.
+-   **`PUT`**: Update an existing resource completely. This method replaces the entire resource with the data provided in the request body. If the resource does not exist, `PUT` can sometimes create it. `PUT` requests should be idempotent.
+-   **`PATCH`**: Partially update an existing resource. This method applies partial modifications to a resource. For example, updating only a user's email address without affecting other details. `PATCH` is not necessarily idempotent.
+-   **`DELETE`**: Remove a resource. This method deletes the specified resource. `DELETE` operations should be idempotent.
+
+## FastAPI Example
+
+Let's see how these methods are used in a simple FastAPI application.
+
+```python
+from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel
+from typing import Optional, Dict
+
+app = FastAPI()
+
+# A simple model for our data
+class Item(BaseModel):
+    name: str
+    description: Optional[str] = None
+    price: float
+    is_offer: Optional[bool] = None
+
+# In-memory "database" - a dictionary to store items
+fake_items_db: Dict[int, Item] = {}
+
+@app.post("/items/", status_code=201) # Use 201 Created for successful POST
+async def create_item(item_id: int, item: Item):
+    if item_id in fake_items_db:
+        raise HTTPException(status_code=400, detail="Item already exists")
+    fake_items_db[item_id] = item
+    return {"item_id": item_id, **item.dict()}
+
+@app.get("/items/{item_id}")
+async def read_item(item_id: int):
+    if item_id not in fake_items_db:
+        raise HTTPException(status_code=404, detail="Item not found")
+    return {"item_id": item_id, **fake_items_db[item_id].dict()}
+
+@app.put("/items/{item_id}")
+async def update_item(item_id: int, item: Item):
+    if item_id not in fake_items_db:
+        raise HTTPException(status_code=404, detail="Item not found")
+    fake_items_db[item_id] = item
+    return {"item_id": item_id, **item.dict()}
+
+@app.patch("/items/{item_id}")
+async def partially_update_item(item_id: int, item_updates: Dict):
+    if item_id not in fake_items_db:
+        raise HTTPException(status_code=404, detail="Item not found")
+    
+    stored_item_data = fake_items_db[item_id].dict()
+    updated_item_data = stored_item_data.copy()
+    updated_item_data.update(item_updates) # Apply partial updates
+    
+    fake_items_db[item_id] = Item(**updated_item_data) # Validate and store
+    return {"item_id": item_id, **fake_items_db[item_id].dict()}
+
+@app.delete("/items/{item_id}")
+async def delete_item(item_id: int):
+    if item_id not in fake_items_db:
+        raise HTTPException(status_code=404, detail="Item not found")
+    del fake_items_db[item_id]
+    return {"message": f"Item {item_id} deleted successfully"}
+
+```
+
+In this example:
+- `@app.post("/items/")` creates a new item.
+- `@app.get("/items/{item_id}")` retrieves an existing item.
+- `@app.put("/items/{item_id}")` fully updates an existing item.
+- `@app.patch("/items/{item_id}")` partially updates an existing item.
+- `@app.delete("/items/{item_id}")` removes an item.
+
+Notice the use of `HTTPException` for error handling, which is a good practice in FastAPI.

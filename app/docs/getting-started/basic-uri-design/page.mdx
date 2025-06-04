@@ -1,0 +1,21 @@
+# Basic URI Design & Naming
+
+When designing your API, the URLs (URIs) should represent resources (things, nouns) rather than actions (verbs). This is a core principle of RESTful API design that promotes clarity and predictability.
+
+## Key Ideas
+
+-   **Use lowercase letters**: API endpoints should consistently use lowercase letters. For example, prefer `/my-resource` instead of `/MyResource` or `/myResource`. This improves readability and avoids case-sensitivity issues.
+-   **Use plural nouns for collections**: When an endpoint refers to a collection of resources, use plural nouns. For instance, `/users` for a collection of user resources, or `/items` for a collection of items.
+-   **Use nouns, not verbs**: URIs should identify resources. The HTTP method (GET, POST, PUT, DELETE) specifies the action to be performed on that resource. So, `/users` is good (identifies the user resources), while `/getUsers` is not (embeds the action in the URI).
+
+## Examples
+
+Here’s how these principles apply in practice:
+
+| Method & URI          | Description                |
+|-----------------------|----------------------------|
+| `GET /users`          | Get a list of all users    |
+| `POST /users`         | Create a new user          |
+| `GET /users/123`      | Get user with ID 123       |
+
+Following these simple naming conventions will make your API more intuitive and easier for developers to understand and use.

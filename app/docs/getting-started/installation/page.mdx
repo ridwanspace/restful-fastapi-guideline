@@ -1,147 +1,80 @@
-# Installation
+# Installing FastAPI
 
-This page covers the detailed installation process for the Anthropic Python SDK across different environments and package managers.
+This guide will walk you through installing FastAPI and an ASGI server, Uvicorn, which is recommended for running FastAPI applications in development and production.
 
-## System Requirements
+## Prerequisites
 
-- **Python**: 3.7 or higher
-- **Operating System**: Windows, macOS, or Linux
-- **Memory**: At least 100MB free space
-
-## Installation Methods
-
-### Using pip (Recommended)
-
-The simplest way to install the SDK:
+Before you begin, ensure you have Python 3.7+ installed on your system. You can check your Python version by running:
 
 ```bash
-pip install anthropic
+python --version
+# or
+python3 --version
 ```
 
-To install a specific version:
+It's also highly recommended to use a virtual environment to manage your project dependencies.
+
+## Creating a Virtual Environment (Recommended)
+
+1.  **Create a virtual environment:**
+    Navigate to your project directory and run:
+    ```bash
+    python -m venv venv
+    ```
+    This creates a `venv` folder in your project directory.
+
+2.  **Activate the virtual environment:**
+    -   On **macOS and Linux**:
+        ```bash
+        source venv/bin/activate
+        ```
+    -   On **Windows**:
+        ```bash
+        .\venv\Scripts\activate
+        ```
+    Your terminal prompt should now indicate that you are in the virtual environment.
+
+## Installing FastAPI and Uvicorn
+
+With your virtual environment activated (or if you choose to install globally), you can install FastAPI and Uvicorn using pip:
 
 ```bash
-pip install anthropic==0.18.1
+pip install fastapi uvicorn[standard]
 ```
 
-To upgrade to the latest version:
+-   `fastapi`: This installs the FastAPI framework itself.
+-   `uvicorn[standard]`: This installs Uvicorn, an ASGI server. The `[standard]` option includes `python-multipart` for form data parsing and `uvloop` for better performance (on Unix-like systems). If you only need the basic Uvicorn, you can use `pip install uvicorn`.
 
-```bash
-pip install --upgrade anthropic
-```
+## Verifying the Installation
 
-### Using Poetry
+To quickly verify your installation, you can create a simple FastAPI application.
 
-If you're using Poetry for dependency management:
+1.  Create a file named `main.py`:
 
-```bash
-poetry add anthropic
-```
+    ```python
+    from fastapi import FastAPI
 
-### Using Conda
+    app = FastAPI()
 
-For Conda environments:
+    @app.get("/")
+    async def root():
+        return {"message": "Hello World"}
+    ```
 
-```bash
-conda install -c conda-forge anthropic
-```
+2.  Run the application with Uvicorn:
 
-### From Source
+    ```bash
+    uvicorn main:app --reload
+    ```
+    -   `main`: refers to the `main.py` file.
+    -   `app`: refers to the `app = FastAPI()` instance created in `main.py`.
+    -   `--reload`: makes the server restart after code changes. Only use this for development.
 
-To install the latest development version:
+3.  Open your browser and go to `http://127.0.0.1:8000`. You should see the JSON response:
+    ```json
+    {"message": "Hello World"}
+    ```
 
-```bash
-pip install git+https://github.com/anthropics/anthropic-sdk-python.git
-```
+You should also be able to see the interactive API documentation (provided by Swagger UI) at `http://127.0.0.1:8000/docs` and alternative documentation (provided by ReDoc) at `http://127.0.0.1:8000/redoc`.
 
-## Virtual Environment Setup
-
-It's recommended to use a virtual environment:
-
-### Using venv
-
-```bash
-# Create virtual environment
-python -m venv anthropic-env
-
-# Activate on macOS/Linux
-source anthropic-env/bin/activate
-
-# Activate on Windows
-anthropic-env\Scripts\activate
-
-# Install the SDK
-pip install anthropic
-```
-
-### Using virtualenv
-
-```bash
-# Install virtualenv if needed
-pip install virtualenv
-
-# Create and activate environment
-virtualenv anthropic-env
-source anthropic-env/bin/activate  # On Windows: anthropic-env\Scripts\activate
-
-# Install the SDK
-pip install anthropic
-```
-
-## Verify Installation
-
-Check that the installation was successful:
-
-```python
-import anthropic
-print(anthropic.__version__)
-```
-
-## Troubleshooting
-
-### SSL Certificate Errors
-
-If you encounter SSL errors:
-
-```bash
-pip install --upgrade certifi
-```
-
-### Permission Errors
-
-If you get permission errors, use:
-
-```bash
-pip install --user anthropic
-```
-
-### Behind a Proxy
-
-If you're behind a corporate proxy:
-
-```bash
-pip install --proxy http://user:password@proxy.server:port anthropic
-```
-
-## Dependencies
-
-The Anthropic SDK automatically installs these dependencies:
-
-- `httpx` - For making HTTP requests
-- `pydantic` - For data validation
-- `typing-extensions` - For type hints
-- `distro` - For platform detection
-
-## Optional Dependencies
-
-For additional features:
-
-```bash
-# For async support
-pip install anthropic[async]
-
-# For development
-pip install anthropic[dev]
-```
-
-[← Previous: Getting Started](/docs/getting-started) | [Next: Authentication →](/docs/getting-started/authentication)
+Congratulations! You have successfully installed FastAPI and Uvicorn. You are now ready to start building your APIs.

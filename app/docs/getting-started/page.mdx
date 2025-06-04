@@ -1,103 +1,13 @@
-# Getting Started
+# Getting Started with RESTful API Design in FastAPI
 
-This guide will help you set up the Anthropic Python SDK and make your first API call.
+This guide provides a foundational understanding of RESTful API design principles specifically tailored for FastAPI. We'll cover the essential concepts to help you build your first API, emphasizing clarity and common best practices.
 
-## Prerequisites
+This "Getting Started" section is broken down into the following parts:
 
-Before you begin, ensure you have:
+- **[Basic URI Design & Naming](/docs/getting-started/basic-uri-design)**: Learn the fundamentals of naming and structuring your API endpoints for clarity and consistency.
+- **[Basic HTTP Methods](/docs/getting-started/basic-http-methods)**: Understand the standard HTTP verbs (GET, POST, PUT, PATCH, DELETE) and their roles in a RESTful API, complete with FastAPI examples.
+- **[Installing FastAPI](/docs/getting-started/installation)**: A quick guide to get FastAPI and an ASGI server like Uvicorn installed in your development environment.
 
-- Python 3.7 or higher installed
-- An Anthropic API key ([Get one here](https://console.anthropic.com))
-- Basic familiarity with Python
+---
 
-## Installation
-
-Install the Anthropic Python SDK using pip:
-
-```bash
-pip install anthropic
-```
-
-Or if you're using Poetry:
-
-```bash
-poetry add anthropic
-```
-
-## API Key Setup
-
-There are several ways to configure your API key:
-
-### Option 1: Environment Variable (Recommended)
-
-Set your API key as an environment variable:
-
-```bash
-export ANTHROPIC_API_KEY="your-api-key-here"
-```
-
-Then in your Python code:
-
-```python
-from anthropic import Anthropic
-
-client = Anthropic()  # Automatically uses ANTHROPIC_API_KEY
-```
-
-### Option 2: Direct Initialization
-
-Pass the API key directly when creating the client:
-
-```python
-from anthropic import Anthropic
-
-client = Anthropic(api_key="your-api-key-here")
-```
-
-### Option 3: Configuration File
-
-Create a `.env` file in your project:
-
-```
-ANTHROPIC_API_KEY=your-api-key-here
-```
-
-Then use python-dotenv:
-
-```python
-from dotenv import load_dotenv
-from anthropic import Anthropic
-
-load_dotenv()
-client = Anthropic()
-```
-
-## Verify Installation
-
-Test your setup with a simple script:
-
-```python
-from anthropic import Anthropic
-
-client = Anthropic()
-
-message = client.messages.create(
-    model="claude-3-opus-20240229",
-    max_tokens=100,
-    messages=[
-        {"role": "user", "content": "Say hello!"}
-    ]
-)
-
-print(message.content[0].text)
-```
-
-If everything is set up correctly, you should see a friendly greeting from Claude!
-
-## Next Steps
-
-- [Installation Details →](/docs/getting-started/installation)
-- [Authentication →](/docs/getting-started/authentication)
-- [Your First Request →](/docs/getting-started/first-request)
-
-[← Previous: Introduction](/docs/introduction) | [Next: Installation →](/docs/getting-started/installation)
+This is just the beginning! As you build more complex APIs, you'll explore more advanced topics covered in our Beginner, Intermediate, and Advanced guidelines.
