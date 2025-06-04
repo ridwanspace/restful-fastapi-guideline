@@ -1,0 +1,204 @@
+# Authentication
+
+Learn how to securely authenticate with the Anthropic API using your API key.
+
+## Obtaining an API Key
+
+1. Visit [console.anthropic.com](https://console.anthropic.com)
+2. Sign up or log in to your account
+3. Navigate to API Keys section
+4. Click "Create Key"
+5. Copy your API key and store it securely
+
+⚠️ **Important**: Treat your API key like a password. Never commit it to version control or share it publicly.
+
+## Authentication Methods
+
+### Environment Variables (Recommended)
+
+The most secure method for production applications:
+
+#### On macOS/Linux
+
+```bash
+export ANTHROPIC_API_KEY="sk-ant-api03-..."
+```
+
+Add to your shell profile (`.bashrc`, `.zshrc`, etc.):
+
+```bash
+echo 'export ANTHROPIC_API_KEY="sk-ant-api03-..."' >> ~/.bashrc
+source ~/.bashrc
+```
+
+#### On Windows
+
+Command Prompt:
+```cmd
+set ANTHROPIC_API_KEY=sk-ant-api03-...
+```
+
+PowerShell:
+```powershell
+$env:ANTHROPIC_API_KEY="sk-ant-api03-..."
+```
+
+#### Using in Python
+
+```python
+from anthropic import Anthropic
+
+# Client automatically reads from ANTHROPIC_API_KEY
+client = Anthropic()
+```
+
+### Direct Initialization
+
+For development and testing:
+
+```python
+from anthropic import Anthropic
+
+client = Anthropic(
+    api_key="sk-ant-api03-..."
+)
+```
+
+### Using .env Files
+
+For local development with python-dotenv:
+
+1. Install python-dotenv:
+```bash
+pip install python-dotenv
+```
+
+2. Create `.env` file:
+```
+ANTHROPIC_API_KEY=sk-ant-api03-...
+```
+
+3. Add `.env` to `.gitignore`:
+```
+echo ".env" >> .gitignore
+```
+
+4. Load in your code:
+```python
+from dotenv import load_dotenv
+from anthropic import Anthropic
+import os
+
+load_dotenv()
+
+client = Anthropic(
+    api_key=os.getenv("ANTHROPIC_API_KEY")
+)
+```
+
+## API Key Security Best Practices
+
+### 1. Never Hardcode Keys
+
+❌ **Bad**:
+```python
+api_key = "sk-ant-api03-..."  # Never do this!
+```
+
+✅ **Good**:
+```python
+api_key = os.getenv("ANTHROPIC_API_KEY")
+```
+
+### 2. Use Secret Management Services
+
+For production applications, consider:
+
+- **AWS Secrets Manager**
+- **Azure Key Vault**
+- **Google Secret Manager**
+- **HashiCorp Vault**
+
+Example with AWS Secrets Manager:
+
+```python
+import boto3
+from anthropic import Anthropic
+
+def get_api_key():
+    client = boto3.client('secretsmanager')
+    response = client.get_secret_value(SecretId='anthropic-api-key')
+    return response['SecretString']
+
+anthropic_client = Anthropic(api_key=get_api_key())
+```
+
+### 3. Rotate Keys Regularly
+
+Periodically rotate your API keys:
+
+1. Generate a new API key
+2. Update your application
+3. Verify the new key works
+4. Revoke the old key
+
+### 4. Monitor Usage
+
+Regularly check your API usage:
+
+```python
+# Check remaining credits
+headers = {"anthropic-version": "2023-06-01"}
+response = client._client.get("/usage", headers=headers)
+print(response.json())
+```
+
+## Handling Authentication Errors
+
+Common authentication errors and solutions:
+
+### Invalid API Key
+
+```python
+from anthropic import APIError
+
+try:
+    response = client.messages.create(...)
+except APIError as e:
+    if e.status_code == 401:
+        print("Invalid API key. Please check your credentials.")
+```
+
+### Rate Limiting
+
+```python
+from anthropic import RateLimitError
+
+try:
+    response = client.messages.create(...)
+except RateLimitError:
+    print("Rate limit exceeded. Please wait before retrying.")
+```
+
+## Multi-Environment Setup
+
+Managing keys across environments:
+
+```python
+import os
+
+# Determine environment
+env = os.getenv("ENVIRONMENT", "development")
+
+# Load appropriate key
+if env == "production":
+    api_key = os.getenv("ANTHROPIC_API_KEY_PROD")
+elif env == "staging":
+    api_key = os.getenv("ANTHROPIC_API_KEY_STAGING")
+else:
+    api_key = os.getenv("ANTHROPIC_API_KEY_DEV")
+
+client = Anthropic(api_key=api_key)
+```
+
+[← Previous: Installation](/docs/getting-started/installation) | [Next: First Request →](/docs/getting-started/first-request)

@@ -1,0 +1,369 @@
+# Handling Responses
+
+Learn how to work with API responses, extract information, and handle different response formats.
+
+## Response Structure
+
+Every successful API call returns a response object with this structure:
+
+```python
+{
+    "id": "msg_01XFDUDYJgAACzvnptvVoYEL",
+    "type": "message", 
+    "role": "assistant",
+    "content": [
+        {
+            "type": "text",
+            "text": "Hello! I'm Claude, an AI assistant..."
+        }
+    ],
+    "model": "claude-3-opus-20240229",
+    "stop_reason": "end_turn",
+    "stop_sequence": null,
+    "usage": {
+        "input_tokens": 10,
+        "output_tokens": 25
+    }
+}
+```
+
+## Accessing Response Data
+
+### Basic Text Extraction
+
+```python
+response = client.messages.create(
+    model="claude-3-opus-20240229",
+    max_tokens=1024,
+    messages=[{"role": "user", "content": "Hello!"}]
+)
+
+# Get the response text
+text = response.content[0].text
+print(text)
+
+# Alternative: using response.content directly
+print(response.content[0].text)
+```
+
+### Response Metadata
+
+```python
+# Message ID (useful for tracking)
+message_id = response.id
+print(f"Message ID: {message_id}")
+
+# Model used
+model_used = response.model
+print(f"Model: {model_used}")
+
+# Why generation stopped
+stop_reason = response.stop_reason
+print(f"Stop reason: {stop_reason}")
+
+# Token usage
+input_tokens = response.usage.input_tokens
+output_tokens = response.usage.output_tokens
+total_tokens = input_tokens + output_tokens
+
+print(f"Tokens used: {input_tokens} in + {output_tokens} out = {total_tokens} total")
+```
+
+## Working with Different Content Types
+
+### Text Content
+
+Most responses contain text:
+
+```python
+for content_block in response.content:
+    if content_block.type == "text":
+        print(content_block.text)
+```
+
+### Multiple Content Blocks
+
+Some responses may have multiple content blocks:
+
+```python
+def extract_all_text(response):
+    """Extract all text from response content blocks"""
+    text_parts = []
+    for block in response.content:
+        if block.type == "text":
+            text_parts.append(block.text)
+    return "\n".join(text_parts)
+
+full_text = extract_all_text(response)
+```
+
+## Response Processing Utilities
+
+### Safe Text Extraction
+
+```python
+def safe_extract_text(response):
+    """Safely extract text from response with error handling"""
+    try:
+        if response and response.content:
+            return response.content[0].text
+        return "No response content"
+    except (AttributeError, IndexError) as e:
+        return f"Error extracting text: {e}"
+
+# Usage
+text = safe_extract_text(response)
+```
+
+### Response Validator
+
+```python
+def validate_response(response):
+    """Validate response structure and content"""
+    issues = []
+    
+    if not response:
+        issues.append("Response is None or empty")
+        return issues
+    
+    # Check basic structure
+    required_attrs = ['id', 'content', 'model', 'usage']
+    for attr in required_attrs:
+        if not hasattr(response, attr):
+            issues.append(f"Missing attribute: {attr}")
+    
+    # Check content
+    if hasattr(response, 'content'):
+        if not response.content:
+            issues.append("Content is empty")
+        elif not response.content[0].text.strip():
+            issues.append("Response text is empty or whitespace only")
+    
+    # Check token usage
+    if hasattr(response, 'usage'):
+        if response.usage.output_tokens == 0:
+            issues.append("No output tokens generated")
+    
+    return issues
+
+# Usage
+issues = validate_response(response)
+if issues:
+    print("Response issues:", issues)
+else:
+    print("Response is valid")
+```
+
+## Stop Reasons
+
+Understanding why generation stopped:
+
+```python
+def interpret_stop_reason(stop_reason):
+    """Interpret the stop reason"""
+    reasons = {
+        "end_turn": "Natural end of response",
+        "max_tokens": "Hit maximum token limit", 
+        "stop_sequence": "Hit a stop sequence",
+        "tool_use": "Model wanted to use a tool"
+    }
+    return reasons.get(stop_reason, f"Unknown reason: {stop_reason}")
+
+# Usage
+interpretation = interpret_stop_reason(response.stop_reason)
+print(f"Generation stopped: {interpretation}")
+
+# Handle max_tokens case
+if response.stop_reason == "max_tokens":
+    print("Warning: Response may be incomplete due to token limit")
+```
+
+## Token Usage Analysis
+
+### Calculate Costs
+
+```python
+def calculate_cost(usage, model="claude-3-opus-20240229"):
+    """Calculate approximate cost based on token usage"""
+    # Pricing per 1M tokens (example rates)
+    pricing = {
+        "claude-3-opus-20240229": {"input": 15.00, "output": 75.00},
+        "claude-3-sonnet-20240229": {"input": 3.00, "output": 15.00},
+        "claude-3-haiku-20240307": {"input": 0.25, "output": 1.25}
+    }
+    
+    if model not in pricing:
+        return None
+    
+    rates = pricing[model]
+    input_cost = (usage.input_tokens / 1_000_000) * rates["input"]
+    output_cost = (usage.output_tokens / 1_000_000) * rates["output"]
+    
+    return {
+        "input_cost": input_cost,
+        "output_cost": output_cost,
+        "total_cost": input_cost + output_cost
+    }
+
+# Usage
+cost_info = calculate_cost(response.usage, response.model)
+if cost_info:
+    print(f"Estimated cost: ${cost_info['total_cost']:.6f}")
+```
+
+### Token Efficiency
+
+```python
+def analyze_efficiency(response):
+    """Analyze token efficiency of the response"""
+    text = response.content[0].text
+    output_tokens = response.usage.output_tokens
+    
+    chars_per_token = len(text) / output_tokens if output_tokens > 0 else 0
+    words = len(text.split())
+    words_per_token = words / output_tokens if output_tokens > 0 else 0
+    
+    return {
+        "characters": len(text),
+        "words": words,
+        "tokens": output_tokens,
+        "chars_per_token": chars_per_token,
+        "words_per_token": words_per_token
+    }
+
+# Usage
+efficiency = analyze_efficiency(response)
+print(f"Efficiency: {efficiency['chars_per_token']:.2f} chars/token")
+```
+
+## Response Caching
+
+### Simple Response Cache
+
+```python
+import hashlib
+import json
+from typing import Dict, Any
+
+class ResponseCache:
+    def __init__(self):
+        self.cache = {}
+    
+    def _hash_request(self, **kwargs):
+        """Create hash of request parameters"""
+        # Create a consistent string representation
+        request_str = json.dumps(kwargs, sort_keys=True)
+        return hashlib.md5(request_str.encode()).hexdigest()
+    
+    def get(self, **kwargs):
+        """Get cached response if available"""
+        key = self._hash_request(**kwargs)
+        return self.cache.get(key)
+    
+    def set(self, response, **kwargs):
+        """Cache a response"""
+        key = self._hash_request(**kwargs)
+        self.cache[key] = {
+            "response": response,
+            "text": response.content[0].text,
+            "tokens": response.usage.output_tokens
+        }
+    
+    def clear(self):
+        """Clear cache"""
+        self.cache.clear()
+
+# Usage
+cache = ResponseCache()
+
+def cached_request(client, **kwargs):
+    """Make request with caching"""
+    # Check cache first
+    cached = cache.get(**kwargs)
+    if cached:
+        print("Using cached response")
+        return cached["response"]
+    
+    # Make actual request
+    response = client.messages.create(**kwargs)
+    cache.set(response, **kwargs)
+    
+    return response
+```
+
+## Response Formatting
+
+### Clean Text Output
+
+```python
+def format_response_text(response):
+    """Format response text for display"""
+    text = response.content[0].text
+    
+    # Clean up common issues
+    text = text.strip()  # Remove leading/trailing whitespace
+    text = '\n'.join(line.strip() for line in text.split('\n'))  # Clean lines
+    
+    # Add metadata
+    formatted = f"""
+Response (ID: {response.id}):
+{'-' * 50}
+{text}
+{'-' * 50}
+Tokens: {response.usage.input_tokens} in, {response.usage.output_tokens} out
+Model: {response.model}
+Stop reason: {response.stop_reason}
+"""
+    return formatted.strip()
+
+# Usage
+formatted_output = format_response_text(response)
+print(formatted_output)
+```
+
+### JSON Response Parsing
+
+When Claude returns structured data:
+
+```python
+import json
+
+def extract_json_from_response(response):
+    """Extract JSON from response text"""
+    text = response.content[0].text
+    
+    # Look for JSON blocks
+    import re
+    json_pattern = r'```json\n(.*?)\n```'
+    json_matches = re.findall(json_pattern, text, re.DOTALL)
+    
+    if json_matches:
+        try:
+            return json.loads(json_matches[0])
+        except json.JSONDecodeError:
+            pass
+    
+    # Try to parse the entire response as JSON
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        return None
+
+# Usage
+json_data = extract_json_from_response(response)
+if json_data:
+    print("Extracted JSON:", json_data)
+else:
+    print("No valid JSON found in response")
+```
+
+## Best Practices
+
+1. **Always check response validity** before processing
+2. **Handle empty or error responses** gracefully
+3. **Monitor token usage** to control costs
+4. **Cache responses** when appropriate to avoid redundant calls
+5. **Extract structured data** carefully with proper error handling
+6. **Log important response metadata** for debugging and analysis
+
+[← Previous: Parameters](/docs/basic-usage/parameters) | [Next: Error Handling →](/docs/basic-usage/error-handling)

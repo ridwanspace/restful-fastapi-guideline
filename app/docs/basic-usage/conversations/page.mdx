@@ -1,0 +1,303 @@
+# Building Conversations
+
+Learn how to create interactive, multi-turn conversations with Claude that maintain context and flow naturally.
+
+## Single vs Multi-turn
+
+### Single Turn
+A single request-response interaction:
+
+```python
+response = client.messages.create(
+    model="claude-3-opus-20240229",
+    max_tokens=1024,
+    messages=[
+        {"role": "user", "content": "What is Python?"}
+    ]
+)
+```
+
+### Multi-turn
+A conversation with history:
+
+```python
+conversation = [
+    {"role": "user", "content": "What is Python?"},
+    {"role": "assistant", "content": "Python is a high-level programming language..."},
+    {"role": "user", "content": "How do I install it?"}
+]
+
+response = client.messages.create(
+    model="claude-3-opus-20240229",
+    max_tokens=1024,
+    messages=conversation
+)
+```
+
+## Building a Conversation Manager
+
+Here's a reusable conversation class:
+
+```python
+from anthropic import Anthropic
+from typing import List, Dict
+
+class ConversationManager:
+    def __init__(self, model="claude-3-opus-20240229", system_prompt=None):
+        self.client = Anthropic()
+        self.model = model
+        self.messages = []
+        self.system_prompt = system_prompt
+    
+    def add_message(self, role: str, content: str):
+        """Add a message to the conversation"""
+        self.messages.append({"role": role, "content": content})
+    
+    def send_message(self, content: str, max_tokens=1024):
+        """Send a user message and get Claude's response"""
+        # Add user message
+        self.add_message("user", content)
+        
+        # Create request
+        response = self.client.messages.create(
+            model=self.model,
+            max_tokens=max_tokens,
+            system=self.system_prompt,
+            messages=self.messages
+        )
+        
+        # Add assistant response to conversation
+        assistant_message = response.content[0].text
+        self.add_message("assistant", assistant_message)
+        
+        return assistant_message
+    
+    def clear_conversation(self):
+        """Clear conversation history"""
+        self.messages = []
+    
+    def get_conversation(self):
+        """Get current conversation"""
+        return self.messages.copy()
+
+# Usage example
+chat = ConversationManager(system_prompt="You are a helpful Python tutor.")
+
+response1 = chat.send_message("What are Python variables?")
+print("Claude:", response1)
+
+response2 = chat.send_message("Can you show me an example?")
+print("Claude:", response2)
+
+response3 = chat.send_message("What about constants?")
+print("Claude:", response3)
+```
+
+## Interactive Chat Loop
+
+Create a simple CLI chat interface:
+
+```python
+def interactive_chat():
+    chat = ConversationManager()
+    
+    print("Claude Chat Interface")
+    print("Type 'quit' to exit, 'clear' to reset conversation")
+    print("-" * 50)
+    
+    while True:
+        user_input = input("You: ").strip()
+        
+        if user_input.lower() == 'quit':
+            break
+        elif user_input.lower() == 'clear':
+            chat.clear_conversation()
+            print("Conversation cleared!")
+            continue
+        elif not user_input:
+            continue
+        
+        try:
+            response = chat.send_message(user_input)
+            print(f"Claude: {response}")
+        except Exception as e:
+            print(f"Error: {e}")
+    
+    print("Goodbye!")
+
+# Run the chat
+# interactive_chat()
+```
+
+## Conversation Contexts
+
+### Setting Context with System Messages
+
+```python
+# Coding assistant
+coding_chat = ConversationManager(
+    system_prompt="You are an expert Python developer. Provide clear, executable code examples with explanations."
+)
+
+# Creative writing assistant
+creative_chat = ConversationManager(
+    system_prompt="You are a creative writing coach. Help with storytelling, character development, and prose improvement."
+)
+
+# Technical support
+support_chat = ConversationManager(
+    system_prompt="You are a technical support specialist. Provide step-by-step troubleshooting guidance."
+)
+```
+
+### Dynamic Context
+
+Adapt context based on conversation:
+
+```python
+class AdaptiveChat(ConversationManager):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.context_keywords = {
+            'code': "Focus on providing accurate, executable code examples.",
+            'explain': "Provide detailed explanations with examples.",
+            'creative': "Be creative and engaging in your responses."
+        }
+    
+    def send_message(self, content: str, max_tokens=1024):
+        # Detect context from message
+        context = ""
+        for keyword, prompt in self.context_keywords.items():
+            if keyword in content.lower():
+                context = prompt
+                break
+        
+        # Temporarily update system prompt if context detected
+        original_system = self.system_prompt
+        if context:
+            self.system_prompt = context
+        
+        # Send message
+        response = super().send_message(content, max_tokens)
+        
+        # Restore original system prompt
+        self.system_prompt = original_system
+        
+        return response
+```
+
+## Managing Conversation Length
+
+Long conversations can exceed token limits. Here's how to manage them:
+
+```python
+class LimitedConversationManager(ConversationManager):
+    def __init__(self, max_messages=20, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.max_messages = max_messages
+    
+    def add_message(self, role: str, content: str):
+        super().add_message(role, content)
+        
+        # Trim old messages if we exceed the limit
+        if len(self.messages) > self.max_messages:
+            # Keep system message if it exists, trim from the beginning
+            if self.messages[0].get("role") == "system":
+                self.messages = [self.messages[0]] + self.messages[-(self.max_messages-1):]
+            else:
+                self.messages = self.messages[-self.max_messages:]
+    
+    def summarize_and_compress(self):
+        """Summarize old messages to save tokens"""
+        if len(self.messages) < 10:
+            return
+        
+        # Get summary of first half of conversation
+        old_messages = self.messages[:len(self.messages)//2]
+        summary_prompt = f"""
+        Summarize this conversation concisely:
+        {old_messages}
+        """
+        
+        summary_response = self.client.messages.create(
+            model=self.model,
+            max_tokens=200,
+            messages=[{"role": "user", "content": summary_prompt}]
+        )
+        
+        summary = summary_response.content[0].text
+        
+        # Replace old messages with summary
+        self.messages = [
+            {"role": "system", "content": f"Previous conversation summary: {summary}"}
+        ] + self.messages[len(self.messages)//2:]
+```
+
+## Conversation Templates
+
+Pre-built conversation starters:
+
+```python
+CONVERSATION_TEMPLATES = {
+    "coding_help": {
+        "system": "You are a senior software developer helping with coding problems.",
+        "starter": "Hi! I'm here to help you with programming questions. What would you like to work on?"
+    },
+    "learning_buddy": {
+        "system": "You are a patient tutor who explains concepts clearly with examples.",
+        "starter": "Hello! I'm here to help you learn. What topic would you like to explore?"
+    },
+    "brainstorming": {
+        "system": "You are a creative partner for brainstorming and idea generation.",
+        "starter": "Let's brainstorm! What project or challenge are you working on?"
+    }
+}
+
+def start_conversation(template_name):
+    template = CONVERSATION_TEMPLATES[template_name]
+    chat = ConversationManager(system_prompt=template["system"])
+    print(template["starter"])
+    return chat
+```
+
+## Best Practices
+
+### 1. Context Preservation
+
+Keep important context throughout the conversation:
+
+```python
+# Good: Reference previous information
+"You mentioned lists earlier. How do they compare to dictionaries?"
+
+# Less effective: Assume context
+"How do they compare to dictionaries?"
+```
+
+### 2. Conversation Flow
+
+Guide the conversation naturally:
+
+```python
+chat.send_message("Let's learn about Python functions step by step.")
+chat.send_message("First, show me how to define a simple function.")
+chat.send_message("Now show me how to add parameters.")
+chat.send_message("Finally, explain return values.")
+```
+
+### 3. Error Recovery
+
+Handle conversation errors gracefully:
+
+```python
+def robust_send_message(chat, content, retries=3):
+    for attempt in range(retries):
+        try:
+            return chat.send_message(content)
+        except Exception as e:
+            if attempt == retries - 1:
+                return f"Sorry, I encountered an error: {e}"
+            time.sleep(1)  # Brief pause before retry
+```
+
+[← Previous: Basic Usage](/docs/basic-usage) | [Next: Parameters →](/docs/basic-usage/parameters)

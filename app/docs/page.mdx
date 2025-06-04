@@ -1,3 +1,35 @@
-# Welcome to My Nextra Site
+# Anthropic Python API Documentation
 
-This is a simple example of a Nextra site.
+Welcome to the comprehensive guide for using Anthropic's API with Python. This documentation will walk you through everything from basic setup to advanced usage patterns.
+
+## What is Anthropic?
+
+Anthropic is an AI safety company that develops Claude, a helpful, harmless, and honest AI assistant. The Python SDK provides a simple and intuitive way to integrate Claude into your applications.
+
+## Documentation Overview
+
+- **[Introduction](/docs/introduction)** - Learn about the Anthropic API and its capabilities
+- **[Getting Started](/docs/getting-started)** - Quick setup guide to get you running
+- **[Basic Usage](/docs/basic-usage)** - Common patterns and examples
+- **[Advanced Features](/docs/advanced-features)** - Deep dive into advanced functionality
+- **[API Reference](/docs/api-reference)** - Complete API documentation
+
+## Quick Start
+
+```python
+from anthropic import Anthropic
+
+client = Anthropic(api_key="your-api-key")
+
+response = client.messages.create(
+    model="claude-3-opus-20240229",
+    max_tokens=100,
+    messages=[
+        {"role": "user", "content": "Hello, Claude!"}
+    ]
+)
+
+print(response.content[0].text)
+```
+
+[Get Started →](/docs/getting-started)

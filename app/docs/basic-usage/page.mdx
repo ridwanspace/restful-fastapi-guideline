@@ -1,0 +1,174 @@
+# Basic Usage
+
+Learn the fundamental patterns for using the Anthropic Python SDK effectively.
+
+## Core Concepts
+
+Before diving into examples, understand these key concepts:
+
+- **Messages**: The primary way to interact with Claude
+- **Conversations**: Multi-turn dialogues with context
+- **Temperature**: Controls response randomness
+- **Tokens**: Units of text (roughly 4 characters each)
+
+## Topics Covered
+
+- **[Simple Conversations →](/docs/basic-usage/conversations)** - Build interactive dialogues
+- **[Parameters Guide →](/docs/basic-usage/parameters)** - Understand all available options
+- **[Handling Responses →](/docs/basic-usage/responses)** - Work with API responses
+- **[Error Handling →](/docs/basic-usage/error-handling)** - Handle errors gracefully
+
+## Quick Examples
+
+### Basic Chat
+
+```python
+from anthropic import Anthropic
+
+client = Anthropic()
+
+response = client.messages.create(
+    model="claude-3-opus-20240229",
+    max_tokens=1024,
+    messages=[
+        {"role": "user", "content": "Explain Python lists in one paragraph"}
+    ]
+)
+
+print(response.content[0].text)
+```
+
+### With Temperature Control
+
+```python
+# More creative response (higher temperature)
+creative_response = client.messages.create(
+    model="claude-3-opus-20240229",
+    max_tokens=1024,
+    temperature=1.0,  # More random/creative
+    messages=[
+        {"role": "user", "content": "Write a haiku about programming"}
+    ]
+)
+
+# More focused response (lower temperature)
+focused_response = client.messages.create(
+    model="claude-3-opus-20240229",
+    max_tokens=1024,
+    temperature=0.0,  # More deterministic
+    messages=[
+        {"role": "user", "content": "List the steps to install Python"}
+    ]
+)
+```
+
+### Multi-turn Conversation
+
+```python
+messages = [
+    {"role": "user", "content": "What's the weather like?"},
+    {"role": "assistant", "content": "I don't have access to real-time weather data. Could you tell me your location so I can provide general climate information?"},
+    {"role": "user", "content": "I'm in Paris, France"}
+]
+
+response = client.messages.create(
+    model="claude-3-opus-20240229",
+    max_tokens=1024,
+    messages=messages
+)
+```
+
+## Best Practices
+
+### 1. Clear Instructions
+
+Be specific in your prompts:
+
+```python
+# Less effective
+"Write code"
+
+# More effective
+"Write a Python function that takes a list of numbers and returns the average"
+```
+
+### 2. Context Management
+
+Provide relevant context:
+
+```python
+context = """
+You are a Python tutor helping beginners learn programming.
+Use simple language and provide examples.
+"""
+
+response = client.messages.create(
+    model="claude-3-opus-20240229",
+    max_tokens=1024,
+    system=context,
+    messages=[
+        {"role": "user", "content": "What are Python decorators?"}
+    ]
+)
+```
+
+### 3. Token Optimization
+
+Estimate tokens needed:
+
+```python
+def estimate_tokens(text):
+    # Rough estimate: 1 token ≈ 4 characters
+    return len(text) // 4
+
+prompt = "Explain machine learning"
+estimated_tokens = estimate_tokens(prompt)
+print(f"Estimated tokens: {estimated_tokens}")
+```
+
+## Common Patterns
+
+### Question Answering
+
+```python
+def ask_claude(question):
+    response = client.messages.create(
+        model="claude-3-opus-20240229",
+        max_tokens=500,
+        messages=[{"role": "user", "content": question}]
+    )
+    return response.content[0].text
+```
+
+### Text Analysis
+
+```python
+def analyze_text(text, instruction):
+    prompt = f"{instruction}\n\nText: {text}"
+    response = client.messages.create(
+        model="claude-3-opus-20240229",
+        max_tokens=1024,
+        messages=[{"role": "user", "content": prompt}]
+    )
+    return response.content[0].text
+
+# Example usage
+text = "Python is a high-level programming language."
+analysis = analyze_text(text, "Identify the key terms in this text")
+```
+
+### Code Generation
+
+```python
+def generate_code(description):
+    prompt = f"Generate Python code for: {description}"
+    response = client.messages.create(
+        model="claude-3-opus-20240229",
+        max_tokens=2048,
+        temperature=0.2,  # Lower for more consistent code
+        messages=[{"role": "user", "content": prompt}]
+    )
+    return response.content[0].text
+```
+
+[← Previous: First Request](/docs/getting-started/first-request) | [Next: Conversations →](/docs/basic-usage/conversations)

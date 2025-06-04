@@ -1,0 +1,147 @@
+# Installation
+
+This page covers the detailed installation process for the Anthropic Python SDK across different environments and package managers.
+
+## System Requirements
+
+- **Python**: 3.7 or higher
+- **Operating System**: Windows, macOS, or Linux
+- **Memory**: At least 100MB free space
+
+## Installation Methods
+
+### Using pip (Recommended)
+
+The simplest way to install the SDK:
+
+```bash
+pip install anthropic
+```
+
+To install a specific version:
+
+```bash
+pip install anthropic==0.18.1
+```
+
+To upgrade to the latest version:
+
+```bash
+pip install --upgrade anthropic
+```
+
+### Using Poetry
+
+If you're using Poetry for dependency management:
+
+```bash
+poetry add anthropic
+```
+
+### Using Conda
+
+For Conda environments:
+
+```bash
+conda install -c conda-forge anthropic
+```
+
+### From Source
+
+To install the latest development version:
+
+```bash
+pip install git+https://github.com/anthropics/anthropic-sdk-python.git
+```
+
+## Virtual Environment Setup
+
+It's recommended to use a virtual environment:
+
+### Using venv
+
+```bash
+# Create virtual environment
+python -m venv anthropic-env
+
+# Activate on macOS/Linux
+source anthropic-env/bin/activate
+
+# Activate on Windows
+anthropic-env\Scripts\activate
+
+# Install the SDK
+pip install anthropic
+```
+
+### Using virtualenv
+
+```bash
+# Install virtualenv if needed
+pip install virtualenv
+
+# Create and activate environment
+virtualenv anthropic-env
+source anthropic-env/bin/activate  # On Windows: anthropic-env\Scripts\activate
+
+# Install the SDK
+pip install anthropic
+```
+
+## Verify Installation
+
+Check that the installation was successful:
+
+```python
+import anthropic
+print(anthropic.__version__)
+```
+
+## Troubleshooting
+
+### SSL Certificate Errors
+
+If you encounter SSL errors:
+
+```bash
+pip install --upgrade certifi
+```
+
+### Permission Errors
+
+If you get permission errors, use:
+
+```bash
+pip install --user anthropic
+```
+
+### Behind a Proxy
+
+If you're behind a corporate proxy:
+
+```bash
+pip install --proxy http://user:password@proxy.server:port anthropic
+```
+
+## Dependencies
+
+The Anthropic SDK automatically installs these dependencies:
+
+- `httpx` - For making HTTP requests
+- `pydantic` - For data validation
+- `typing-extensions` - For type hints
+- `distro` - For platform detection
+
+## Optional Dependencies
+
+For additional features:
+
+```bash
+# For async support
+pip install anthropic[async]
+
+# For development
+pip install anthropic[dev]
+```
+
+[← Previous: Getting Started](/docs/getting-started) | [Next: Authentication →](/docs/getting-started/authentication)
