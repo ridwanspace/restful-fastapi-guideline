@@ -1,0 +1,25 @@
+# Basic API Versioning (URL-based)
+
+A simple way to version your API is by including the version in the URL.
+
+```python
+from fastapi import FastAPI, APIRouter
+
+app = FastAPI()
+
+router_v1 = APIRouter(prefix="/api/v1")
+
+@router_v1.get("/greet")
+async def greet_v1():
+    return {"message": "Hello from API v1"}
+
+app.include_router(router_v1)
+
+# You could define a router_v2 for a future version
+# router_v2 = APIRouter(prefix="/api/v2")
+# @router_v2.get("/greet")
+# async def greet_v2():
+#     return {"message": "Hello from API v2 with new features!"}
+# app.include_router(router_v2)
+```
+Clients would then access `/api/v1/greet`.
