@@ -12,9 +12,9 @@ please split sections at @sources/fastapi_guidelines/advanced_fastapi_guidelines
 Act as a technical documentation writer with 10+ years of experience in FastAPI, please review the content under @app/docs/02_foundation/page.mdx and @app/docs/03_intermediate/page.mdx
 
 after you get the context, your mission is to refine, modify, extend the content (each page.mdx) under:
-- @app/docs/04_advance/04-implementation-examples/page.mdx
-- @app/docs/04_advance/05-security-considerations/page.mdx
-- @app/docs/04_advance/06-performance-optimization/page.mdx
+- @app/docs/04_advance/07-monitoring-observability/page.mdx
+- @app/docs/04_advance/08-best-practices/page.mdx
+- @app/docs/04_advance/09-reference-standards/page.mdx
 
 the purpose of refinement is to avoid the duplicate/overlap content of three page.mdx above compared to its predecessors (02_foundation and 03_intermediate), make sure you also:
 <instruction>
