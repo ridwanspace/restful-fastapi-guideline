@@ -385,7 +385,7 @@ Now that your restaurant is ready, you can:
 
 **Now, transform the 
 <provided_documentation>
-[PUT YOUR DOCUMENTATION HERE]
+@app/docs/01_getting_started/a-start-what-is-restapi/page.mdx
 </provided_documentation>
 
 following these Vue.js excellence standards. Make it progressive, accessible, and comprehensive for developers of all levels.**
