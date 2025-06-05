@@ -323,7 +323,7 @@ Now that your restaurant is ready, you can:
 
 **Now, transform the 
 <provided_documentation>
-@app/docs/02_foundation/09-http-status-codes/page.mdx
+@app/docs/03_intermediate/01-filtering-searching/page.mdx
 </provided_documentation>
 
 following these Vue.js excellence standards. Make it progressive, accessible, and comprehensive for developers of all levels.**
