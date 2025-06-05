@@ -85,14 +85,14 @@ graph LR
         D[🗄️ Database<br/>The Pantry]
     end
     
-    A1 -->|HTTP Request<br/>"I'd like..."| B
+    A1 -->|HTTP Request<br/>&quot;I'd like...&quot;| B
     A2 -->|HTTP Request| B
     A3 -->|HTTP Request| B
     B -->|Process Order| C
     C -->|Get Ingredients| D
     D -->|Raw Data| C
     C -->|Prepared Data| B
-    B -->|JSON Response<br/>"Here's your order"| A1
+    B -->|JSON Response<br/>&quot;Here's your order&quot;| A1
     B -->|JSON Response| A2
     B -->|JSON Response| A3
     
@@ -333,7 +333,9 @@ Imagine a food court where multiple restaurants share a central kitchen. Each re
 ```mermaid
 graph TD
     subgraph "Different Dining Experiences"
-        A[📱 Mobile App<br/>Quick Service Counter]
+        %% Invisible node for spacing
+        invisible_node[ ]
+        invisible_node ~~~ A[📱 Mobile App<br/>Quick Service Counter]
         B[💻 Web App<br/>Full Service Restaurant]
         C[⌚ Smart Watch<br/>Drive-Through]
         D[🎮 Gaming Console<br/>Delivery Service]
