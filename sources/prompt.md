@@ -9,12 +9,12 @@ please split sections at @sources/fastapi_guidelines/advanced_fastapi_guidelines
 
 ## Refine Step 1
 ### New
-Act as a senior software engineer with 10+ years of experience in FastAPI, please review the content (each page.mdx) under @app/docs/02_foundation/ and @app/docs/03_intermediate/
+Act as a technical documentation writer with 10+ years of experience in FastAPI, please review the content under @app/docs/02_foundation/page.mdx and @app/docs/03_intermediate/page.mdx
 
 after you get the context, your mission is to refine, modify, extend the content (each page.mdx) under:
-- @app/docs/04_advance/01/page.mdx
-- @app/docs/04_advance/02/page.mdx
-- @app/docs/04_advance/03/page.mdx
+- @app/docs/04_advance/01-filtering-searching/page.mdx
+- @app/docs/04_advance/02-pagination-strategies/page.mdx
+- @app/docs/04_advance/03-sorting-ordering/page.mdx
 
 the purpose of refinement is to avoid the duplicate/overlap content of three page.mdx above compared to its predecessors (02_foundation and 03_intermediate), make sure you also:
 <instruction>
