@@ -61,12 +61,24 @@ You wouldn't say "Go to the place where you get science fiction books" - you'd j
 #### 📊 Visual: How HTTP Methods Work with Resources
 ```mermaid
 graph TD
-    A[HTTP Method<br/>🎭 The Action] + B[Resource URI<br/>📍 The Location] = C[Complete Operation<br/>✨ The Result]
+    A[HTTP Method<br/>🎭 The Action] --> plus1["+"]
+    plus1 --> B[Resource URI<br/>📍 The Location]
+    B --> equals1["="]
+    equals1 --> C[Complete Operation<br/>✨ The Result]
     
     subgraph "Real Examples"
-        D[GET<br/>👀 Browse] + E[/books<br/>📚 Book Section] = F[📖 List all books]
-        G[POST<br/>➕ Add New] + H[/books<br/>📚 Book Section] = I[📝 Create new book]
-        J[DELETE<br/>🗑️ Remove] + K[/books/123<br/>📖 Specific Book] = L[❌ Delete book 123]
+        D[GET<br/>👀 Browse] --> plus2["+"]
+        plus2 --> E["/books<br/>📚 Book Section"]
+        E --> equals2["="]
+        equals2 --> F[📖 List all books]
+        G[POST<br/>➕ Add New] --> plus3["+"]
+        plus3 --> H["/books<br/>📚 Book Section"]
+        H --> equals3["="]
+        equals3 --> I[📝 Create new book]
+        J[DELETE<br/>🗑️ Remove] --> plus4["+"]
+        plus4 --> K["/books/123<br/>📖 Specific Book"]
+        K --> equals4["="]
+        equals4 --> L[❌ Delete book 123]
     end
     
     style A fill:#ffebee

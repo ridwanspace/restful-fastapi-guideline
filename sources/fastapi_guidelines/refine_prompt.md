@@ -323,7 +323,7 @@ Now that your restaurant is ready, you can:
 
 **Now, transform the 
 <provided_documentation>
-@app/docs/01_getting_started/basic-uri-design/page.mdx
+@app/docs/01_getting_started/installation/page.mdx
 </provided_documentation>
 
 following these Vue.js excellence standards. Make it progressive, accessible, and comprehensive for developers of all levels.**
