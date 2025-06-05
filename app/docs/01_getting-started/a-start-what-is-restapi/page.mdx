@@ -486,7 +486,7 @@ APIs are like a club with a bouncer (authentication) and a vault (data protectio
 stateDiagram-v2
     [*] --> Request: Client makes request
     
-    state "API Security Layers" {
+    state "API Security Layers" as APISecurityLayers {
         Request --> Authentication: Who are you?
         Authentication --> Authorization: What can you do?
         Authorization --> Validation: Is request valid?
