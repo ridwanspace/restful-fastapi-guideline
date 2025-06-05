@@ -1,1248 +1,826 @@
-# 📊 Advanced HTTP Status Code Patterns & Strategies
+# 🚦 HTTP Status Codes: The Language of Web Communication
 
-*Mastering sophisticated status code usage for complex business scenarios and enterprise APIs*
+*Master the universal language that APIs use to communicate success, errors, and everything in between*
 
-Building upon the foundation of basic status codes, let's explore advanced patterns that handle complex business logic, conditional operations, and sophisticated client-server interactions with semantic precision.
+## 🎯 Real-World Analogy: HTTP Status Codes as Traffic Signals
 
-## 🎯 Strategic Status Code Architecture
+Think of HTTP status codes as a sophisticated traffic control system at a busy intersection:
+
+- **🟢 Green lights (2xx)**: "Go ahead! Your request was successful"
+- **🟡 Yellow lights (3xx)**: "Redirect! Take this alternate route"
+- **🔴 Red lights (4xx)**: "Stop! There's a problem with your request"
+- **🚨 Emergency signals (5xx)**: "System malfunction! We're working on it"
+
+Just like traffic signals help drivers navigate safely, HTTP status codes help applications understand exactly what happened with their requests and how to respond appropriately.
+
+## 📊 Visual Overview: The Complete Status Code Landscape
 
 ```mermaid
-graph LR
-    A[🌐 Client Request] --> B{Business Logic}
+graph TB
+    A[🌐 HTTP Request] --> B{Response Category}
     
-    B --> C[✅ Success Path]
-    B --> D[⚠️ Client Error Path]
-    B --> E[🔥 Server Error Path]
-    B --> F[🔄 Redirect Path]
+    B --> C[✅ 2xx Success]
+    B --> D[🔄 3xx Redirection]
+    B --> E[⚠️ 4xx Client Error]
+    B --> F[🔥 5xx Server Error]
     
-    C --> C1[200 OK]
-    C --> C2[201 Created]
-    C --> C3[202 Accepted]
-    C --> C4[204 No Content]
-    C --> C5[206 Partial Content]
+    C --> C1[200 OK<br/>✅ Standard success]
+    C --> C2[201 Created<br/>🆕 New resource created]
+    C --> C3[202 Accepted<br/>⏳ Processing started]
+    C --> C4[204 No Content<br/>🗑️ Success, nothing to return]
     
-    D --> D1[400 Bad Request]
-    D --> D2[401 Unauthorized]
-    D --> D3[403 Forbidden]
-    D --> D4[404 Not Found]
-    D --> D5[409 Conflict]
-    D --> D6[412 Precondition Failed]
-    D --> D7[422 Unprocessable Entity]
-    D --> D8[429 Too Many Requests]
+    D --> D1[301 Moved<br/>📦 Permanent new address]
+    D --> D2[302 Found<br/>🔍 Temporary redirect]
+    D --> D3[304 Not Modified<br/>💾 Use your cache]
     
-    E --> E1[500 Internal Server Error]
-    E --> E2[502 Bad Gateway]
-    E --> E3[503 Service Unavailable]
-    E --> E4[504 Gateway Timeout]
+    E --> E1[400 Bad Request<br/>❌ Invalid syntax]
+    E --> E2[401 Unauthorized<br/>🔐 Authentication required]
+    E --> E3[403 Forbidden<br/>🚫 Permission denied]
+    E --> E4[404 Not Found<br/>🔍 Resource missing]
     
-    F --> F1[301 Moved Permanently]
-    F --> F2[302 Found]
-    F --> F3[304 Not Modified]
-    F --> F4[307 Temporary Redirect]
+    F --> F1[500 Server Error<br/>💥 General failure]
+    F --> F2[502 Bad Gateway<br/>🌉 Upstream problem]
+    F --> F3[503 Unavailable<br/>🔧 Maintenance mode]
     
     style A fill:#e1f5fe
-    style C fill:#e8f5e8
-    style D fill:#fff3e0
-    style E fill:#ffebee
-    style F fill:#f3e5f5
+    style C fill:#c8e6c9
+    style D fill:#fff9c4
+    style E fill:#ffccbc
+    style F fill:#ffcdd2
 ```
 
-## 🚀 Advanced Success Patterns
+## 🏁 Getting Started: Your First Status Codes
 
-### 📊 Contextual Success Responses
+### 🎯 Analogy: Status Codes as Restaurant Service Feedback
 
-```python
-from fastapi import FastAPI, HTTPException, status, Request, Depends, Header, BackgroundTasks
-from fastapi.responses import Response, JSONResponse, StreamingResponse
-from pydantic import BaseModel, Field
-from typing import Optional, Dict, Any, List
-from datetime import datetime, timedelta
-from enum import Enum
-import asyncio
-import uuid
+Imagine you're at a restaurant:
+- **200 OK**: "Here's your meal, exactly as ordered!"
+- **201 Created**: "Your special order has been added to our menu!"
+- **400 Bad Request**: "Sorry, we don't understand your order"
+- **404 Not Found**: "That dish isn't on our menu"
+- **500 Internal Server Error**: "Our kitchen is having problems"
 
-app = FastAPI()
+### 🔧 Basic Implementation: The Essential Status Codes
 
-class ResourceStatus(str, Enum):
-    DRAFT = "draft"
-    PENDING = "pending"
-    ACTIVE = "active"
-    SUSPENDED = "suspended"
-    DELETED = "deleted"
-
-class ProcessingResult(BaseModel):
-    success: bool
-    partial: bool = False
-    processed_count: int
-    failed_count: int = 0
-    warnings: List[str] = []
-
-# 🎯 Sophisticated Success Response Patterns
-
-@app.post("/resources/batch", status_code=status.HTTP_207_MULTI_STATUS)
-async def create_batch_resources(resources: List[Dict[str, Any]]):
-    """
-    207: Multi-Status - Mixed success/failure results
-    Perfect for batch operations where some items succeed and others fail
-    """
-    results = []
-    
-    for i, resource in enumerate(resources):
-        try:
-            # Simulate resource creation with potential failures
-            if resource.get("name", "").startswith("invalid"):
-                results.append({
-                    "index": i,
-                    "status": 400,
-                    "error": "INVALID_NAME",
-                    "message": "Resource name cannot start with 'invalid'"
-                })
-            else:
-                # Successful creation
-                resource_id = f"res_{uuid.uuid4().hex[:8]}"
-                results.append({
-                    "index": i,
-                    "status": 201,
-                    "resource": {
-                        "id": resource_id,
-                        "name": resource["name"],
-                        "created_at": datetime.utcnow().isoformat()
-                    }
-                })
-        except Exception as e:
-            results.append({
-                "index": i,
-                "status": 500,
-                "error": "CREATION_FAILED",
-                "message": str(e)
-            })
-    
-    return {
-        "batch_id": str(uuid.uuid4()),
-        "total_items": len(resources),
-        "successful": len([r for r in results if r["status"] < 400]),
-        "failed": len([r for r in results if r["status"] >= 400]),
-        "results": results
-    }
-
-@app.get("/resources/{resource_id}/export")
-async def export_resource_206(
-    resource_id: str,
-    range_header: Optional[str] = Header(None, alias="Range")
-):
-    """
-    206: Partial Content - For large resource exports or resumable downloads
-    Supports HTTP Range requests for efficient data transfer
-    """
-    # Simulate large dataset
-    total_records = 10000
-    
-    # Parse Range header (e.g., "bytes=0-1023" or "items=0-99")
-    start, end = 0, 999  # Default range
-    
-    if range_header:
-        if range_header.startswith("items="):
-            range_part = range_header[6:]  # Remove "items="
-            if "-" in range_part:
-                parts = range_part.split("-")
-                start = int(parts[0]) if parts[0] else 0
-                end = int(parts[1]) if parts[1] else min(start + 999, total_records - 1)
-    
-    # Generate partial data
-    data = [
-        {"id": i, "value": f"record_{i}", "timestamp": datetime.utcnow().isoformat()}
-        for i in range(start, min(end + 1, total_records))
-    ]
-    
-    return JSONResponse(
-        status_code=status.HTTP_206_PARTIAL_CONTENT,
-        content={
-            "data": data,
-            "pagination": {
-                "start": start,
-                "end": min(end, total_records - 1),
-                "total": total_records,
-                "has_more": end < total_records - 1
-            }
-        },
-        headers={
-            "Content-Range": f"items {start}-{min(end, total_records - 1)}/{total_records}",
-            "Accept-Ranges": "items",
-            "X-Total-Count": str(total_records)
-        }
-    )
-
-@app.post("/workflows/{workflow_id}/execute")
-async def execute_workflow_202(
-    workflow_id: str,
-    background_tasks: BackgroundTasks,
-    x_execution_mode: str = Header("async", description="sync or async"),
-    x_callback_url: Optional[str] = Header(None)
-):
-    """
-    202: Accepted - Enhanced async processing with callback support
-    Demonstrates sophisticated async operation tracking
-    """
-    execution_id = str(uuid.uuid4())
-    
-    if x_execution_mode == "sync":
-        # Synchronous execution with timeout protection
-        try:
-            result = await asyncio.wait_for(
-                simulate_workflow_execution(workflow_id),
-                timeout=30.0
-            )
-            return JSONResponse(
-                status_code=status.HTTP_200_OK,
-                content={
-                    "execution_id": execution_id,
-                    "status": "completed",
-                    "result": result,
-                    "execution_mode": "synchronous"
-                }
-            )
-        except asyncio.TimeoutError:
-            # Fall back to async if sync takes too long
-            background_tasks.add_task(
-                execute_workflow_background,
-                workflow_id,
-                execution_id,
-                x_callback_url
-            )
-            
-            return JSONResponse(
-                status_code=status.HTTP_202_ACCEPTED,
-                content={
-                    "execution_id": execution_id,
-                    "status": "accepted",
-                    "message": "Execution took longer than expected, switched to async mode",
-                    "status_url": f"/workflows/executions/{execution_id}/status",
-                    "estimated_completion": datetime.utcnow() + timedelta(minutes=5)
-                },
-                headers={
-                    "Location": f"/workflows/executions/{execution_id}",
-                    "Retry-After": "30"
-                }
-            )
-    
-    # Asynchronous execution
-    background_tasks.add_task(
-        execute_workflow_background,
-        workflow_id,
-        execution_id,
-        x_callback_url
-    )
-    
-    return JSONResponse(
-        status_code=status.HTTP_202_ACCEPTED,
-        content={
-            "execution_id": execution_id,
-            "status": "accepted",
-            "message": "Workflow execution started",
-            "status_url": f"/workflows/executions/{execution_id}/status",
-            "cancel_url": f"/workflows/executions/{execution_id}/cancel",
-            "estimated_completion": datetime.utcnow() + timedelta(minutes=3),
-            "callback_url": x_callback_url
-        },
-        headers={
-            "Location": f"/workflows/executions/{execution_id}",
-            "Retry-After": "30"
-        }
-    )
-
-async def simulate_workflow_execution(workflow_id: str) -> Dict[str, Any]:
-    """Simulate workflow processing"""
-    await asyncio.sleep(2)  # Simulate work
-    return {
-        "workflow_id": workflow_id,
-        "steps_completed": 5,
-        "total_steps": 5,
-        "output": {"result": "success", "data_processed": 1500}
-    }
-
-async def execute_workflow_background(
-    workflow_id: str, 
-    execution_id: str, 
-    callback_url: Optional[str]
-):
-    """Background workflow execution with callback support"""
-    try:
-        result = await simulate_workflow_execution(workflow_id)
-        
-        # If callback URL provided, notify completion
-        if callback_url:
-            # In real implementation, make HTTP POST to callback_url
-            print(f"Would notify {callback_url} of completion: {execution_id}")
-    
-    except Exception as e:
-        print(f"Workflow {execution_id} failed: {e}")
-
-@app.patch("/resources/{resource_id}")
-async def update_resource_smart_status(
-    resource_id: str,
-    updates: Dict[str, Any],
-    if_match: Optional[str] = Header(None, alias="If-Match"),
-    x_update_strategy: str = Header("merge", description="merge, replace, or patch")
-):
-    """
-    Smart status selection based on operation result and strategy
-    Demonstrates conditional status code logic
-    """
-    # Simulate resource retrieval and validation
-    current_resource = {
-        "id": resource_id,
-        "version": 3,
-        "status": ResourceStatus.ACTIVE,
-        "data": {"name": "Original Resource", "value": 100}
-    }
-    
-    current_etag = f'"{resource_id}-v{current_resource["version"]}"'
-    
-    # Handle conditional update
-    if if_match and if_match != current_etag:
-        raise HTTPException(
-            status_code=status.HTTP_412_PRECONDITION_FAILED,
-            detail={
-                "error": "PRECONDITION_FAILED",
-                "message": "Resource has been modified by another request",
-                "current_etag": current_etag,
-                "provided_etag": if_match
-            }
-        )
-    
-    # Apply updates based on strategy
-    updated_resource = current_resource.copy()
-    changed_fields = []
-    
-    if x_update_strategy == "replace":
-        # Complete replacement
-        old_data = updated_resource["data"]
-        updated_resource["data"] = updates
-        changed_fields = list(set(old_data.keys()) | set(updates.keys()))
-        
-    elif x_update_strategy == "patch":
-        # JSON Patch-style updates
-        for field, value in updates.items():
-            if field in updated_resource["data"]:
-                if updated_resource["data"][field] != value:
-                    updated_resource["data"][field] = value
-                    changed_fields.append(field)
-            else:
-                updated_resource["data"][field] = value
-                changed_fields.append(field)
-    
-    else:  # merge (default)
-        for field, value in updates.items():
-            if updated_resource["data"].get(field) != value:
-                updated_resource["data"][field] = value
-                changed_fields.append(field)
-    
-    updated_resource["version"] += 1
-    new_etag = f'"{resource_id}-v{updated_resource["version"]}"'
-    
-    # Smart status code selection
-    if not changed_fields:
-        # No actual changes made
-        return JSONResponse(
-            status_code=status.HTTP_304_NOT_MODIFIED,
-            headers={
-                "ETag": current_etag,
-                "Cache-Control": "max-age=300"
-            }
-        )
-    
-    elif len(changed_fields) == len(updates) and x_update_strategy == "replace":
-        # Complete replacement successful
-        status_code = status.HTTP_200_OK
-        message = "Resource completely updated"
-    
-    elif len(changed_fields) < len(updates):
-        # Partial update (some fields ignored/invalid)
-        status_code = status.HTTP_200_OK
-        message = f"Partial update applied to {len(changed_fields)} of {len(updates)} fields"
-    
-    else:
-        # Standard successful update
-        status_code = status.HTTP_200_OK
-        message = "Resource updated successfully"
-    
-    return JSONResponse(
-        status_code=status_code,
-        content={
-            "resource": updated_resource,
-            "changes": {
-                "modified_fields": changed_fields,
-                "update_strategy": x_update_strategy,
-                "message": message
-            },
-            "metadata": {
-                "version": updated_resource["version"],
-                "last_modified": datetime.utcnow().isoformat()
-            }
-        },
-        headers={
-            "ETag": new_etag,
-            "Last-Modified": datetime.utcnow().strftime("%a, %d %b %Y %H:%M:%S GMT")
-        }
-    )
-
-```
-
-## 🔄 Advanced Redirection Strategies
-
-### 🎯 Intelligent Redirection Patterns
+Let's start with the most common status codes you'll use every day:
 
 ```python
-from urllib.parse import urlencode
+# Import FastAPI with status code support - like importing a universal translator
+from fastapi import FastAPI, HTTPException, status
+from typing import Dict, Optional
+from datetime import datetime
+from pydantic import BaseModel
 
-class RedirectionManager:
-    """Advanced redirection handling with context awareness"""
-    
-    def __init__(self):
-        self.permanent_redirects = {
-            "/api/v1/users": "/api/v2/users",
-            "/legacy/orders": "/api/v2/orders"
-        }
-        
-        self.temporary_redirects = {
-            "/maintenance": "/status/maintenance",
-            "/emergency": "/status/emergency"
-        }
+# Create your API application - like opening a restaurant
+app = FastAPI(
+    title="Status Code Tutorial API",
+    description="Learn HTTP status codes with practical examples",
+    version="1.0.0"
+)
 
-@app.get("/api/v1/users/{user_id}")
-async def redirect_user_301_smart(
-    user_id: int,
-    request: Request,
-    preserve_query: bool = True
-):
+# Define a simple data model - like a menu item description
+class MenuItem(BaseModel):
+    name: str
+    price: float
+    description: Optional[str] = None
+
+# In-memory database - like the restaurant's current menu
+menu_items = {}
+
+# ✅ Success: 200 OK - The most common success response
+@app.get("/menu/{item_id}")
+async def get_menu_item(item_id: str) -> Dict[str, any]:
     """
-    301: Moved Permanently - Smart redirect with query preservation
-    Automatically handles API version migrations
+    200 OK: Successfully retrieved the requested resource.
+    Like a waiter bringing you exactly what you ordered.
     """
-    # Preserve original query parameters
-    query_params = dict(request.query_params)
-    query_string = f"?{urlencode(query_params)}" if query_params and preserve_query else ""
-    
-    new_location = f"/api/v2/users/{user_id}{query_string}"
-    
-    return JSONResponse(
-        status_code=status.HTTP_301_MOVED_PERMANENTLY,
-        content={
-            "code": "PERMANENT_REDIRECT",
-            "message": "This endpoint has been permanently moved to API v2",
-            "new_location": new_location,
-            "migration_guide": "/docs/migration/v1-to-v2",
-            "deprecation_date": "2024-12-31"
-        },
-        headers={
-            "Location": new_location,
-            "Cache-Control": "max-age=31536000",  # Cache redirect for 1 year
-            "X-Moved-From": str(request.url)
+    # Check if the item exists in our menu
+    if item_id in menu_items:
+        # Return the item with a 200 OK status (implicit)
+        return {
+            "status": "success",
+            "data": menu_items[item_id],
+            "timestamp": datetime.utcnow().isoformat()
         }
+    
+    # If not found, we'll handle this with 404 (see below)
+    raise HTTPException(
+        status_code=status.HTTP_404_NOT_FOUND,
+        detail="Menu item not found"
     )
 
-@app.get("/resources/{resource_id}/conditional")
-async def conditional_redirect_or_content(
-    resource_id: str,
-    request: Request,
-    accept: Optional[str] = Header("application/json"),
-    user_agent: Optional[str] = Header(None)
-):
+# 🆕 Success: 201 Created - When you create something new
+@app.post("/menu", status_code=status.HTTP_201_CREATED)
+async def create_menu_item(item: MenuItem) -> Dict[str, any]:
     """
-    Smart conditional responses: 302, 304, or 200 based on client context
-    Demonstrates context-aware HTTP status selection
+    201 Created: A new resource was successfully created.
+    Like adding a new dish to the restaurant menu.
     """
-    # Simulate resource state
-    resource = {
-        "id": resource_id,
-        "content": f"Resource {resource_id} content",
-        "last_modified": "2024-01-15T10:30:00Z",
-        "version": 5
+    # Generate a unique ID for the new item
+    item_id = f"item_{len(menu_items) + 1}"
+    
+    # Store the new menu item
+    menu_items[item_id] = {
+        "id": item_id,
+        "name": item.name,
+        "price": item.price,
+        "description": item.description,
+        "created_at": datetime.utcnow().isoformat()
     }
     
-    resource_etag = f'"{resource_id}-v{resource["version"]}"'
-    client_etag = request.headers.get("If-None-Match")
-    
-    # Check if resource hasn't changed
-    if client_etag and client_etag == resource_etag:
-        return Response(
-            status_code=status.HTTP_304_NOT_MODIFIED,
-            headers={
-                "ETag": resource_etag,
-                "Cache-Control": "max-age=300",
-                "Last-Modified": resource["last_modified"]
-            }
-        )
-    
-    # Mobile redirect for mobile clients
-    if user_agent and any(mobile in user_agent.lower() for mobile in ["mobile", "android", "iphone"]):
-        mobile_url = f"/mobile/resources/{resource_id}"
-        return JSONResponse(
-            status_code=status.HTTP_302_FOUND,
-            content={
-                "redirect_reason": "MOBILE_OPTIMIZATION",
-                "message": "Redirecting to mobile-optimized version",
-                "mobile_url": mobile_url
-            },
-            headers={
-                "Location": mobile_url,
-                "Vary": "User-Agent",
-                "Cache-Control": "no-cache"
-            }
-        )
-    
-    # Content negotiation redirect for unsupported formats
-    if accept and "application/pdf" in accept:
-        pdf_url = f"/resources/{resource_id}/export?format=pdf"
-        return JSONResponse(
-            status_code=status.HTTP_302_FOUND,
-            content={
-                "redirect_reason": "FORMAT_CONVERSION",
-                "message": "Redirecting to PDF export endpoint",
-                "export_url": pdf_url
-            },
-            headers={
-                "Location": pdf_url,
-                "Vary": "Accept"
-            }
-        )
-    
-    # Normal content response
-    return JSONResponse(
-        content=resource,
-        headers={
-            "ETag": resource_etag,
-            "Last-Modified": resource["last_modified"],
-            "Cache-Control": "max-age=300",
-            "Vary": "Accept, User-Agent"
-        }
-    )
-
-@app.get("/resources/{resource_id}/adaptive")
-async def adaptive_redirect_307(
-    resource_id: str,
-    request: Request,
-    load_balancer_hint: Optional[str] = Header(None, alias="X-Preferred-Region")
-):
-    """
-    307: Temporary Redirect - Load balancing and geo-optimization
-    Preserves HTTP method and request body for redirected requests
-    """
-    # Simulate geo-location and load balancing logic
-    client_ip = request.client.host if request.client else "127.0.0.1"
-    
-    # Determine optimal region based on IP and hints
-    optimal_region = "us-west"
-    if load_balancer_hint:
-        optimal_region = load_balancer_hint
-    elif client_ip.startswith("192.168"):  # Mock EU detection
-        optimal_region = "eu-central"
-    
-    current_region = "us-east"  # Current server region
-    
-    if optimal_region != current_region:
-        # Redirect to optimal region with method preservation
-        target_url = f"https://{optimal_region}.api.example.com/resources/{resource_id}/adaptive"
-        
-        return JSONResponse(
-            status_code=status.HTTP_307_TEMPORARY_REDIRECT,
-            content={
-                "redirect_reason": "GEOGRAPHIC_OPTIMIZATION",
-                "message": f"Redirecting to {optimal_region} region for better performance",
-                "target_region": optimal_region,
-                "current_region": current_region,
-                "estimated_latency_improvement": "150ms"
-            },
-            headers={
-                "Location": target_url,
-                "X-Redirect-Reason": "geo-optimization",
-                "X-Target-Region": optimal_region,
-                "Cache-Control": "no-cache"  # Don't cache geo-redirects
-            }
-        )
-    
-    # Serve content from current region
+    # Return the created item with its location
     return {
-        "resource_id": resource_id,
-        "served_from": current_region,
-        "content": f"Resource {resource_id} from {current_region}"
+        "status": "created",
+        "id": item_id,
+        "data": menu_items[item_id],
+        "location": f"/menu/{item_id}"  # Where to find the new resource
     }
 
-```
-
-## 🚨 Advanced Client Error Patterns  
-
-### ⚠️ Sophisticated Error Context and Recovery
-
-```python
-from typing import Literal
-import time
-from collections import defaultdict
-
-class RateLimiter:
-    """Advanced rate limiting with multiple tiers"""
-    def __init__(self):
-        self.requests = defaultdict(list)
-        self.limits = {
-            "standard": {"requests": 100, "window": 3600},  # 100/hour
-            "premium": {"requests": 1000, "window": 3600},   # 1000/hour
-            "burst": {"requests": 10, "window": 60}          # 10/minute burst
-        }
-    
-    def is_rate_limited(self, client_id: str, tier: str = "standard") -> tuple[bool, dict]:
-        now = time.time()
-        limit_config = self.limits[tier]
-        window_start = now - limit_config["window"]
-        
-        # Clean old requests
-        self.requests[client_id] = [
-            req_time for req_time in self.requests[client_id] 
-            if req_time > window_start
-        ]
-        
-        current_count = len(self.requests[client_id])
-        is_limited = current_count >= limit_config["requests"]
-        
-        if not is_limited:
-            self.requests[client_id].append(now)
-        
-        return is_limited, {
-            "current_count": current_count,
-            "limit": limit_config["requests"],
-            "window": limit_config["window"],
-            "reset_time": window_start + limit_config["window"]
-        }
-
-rate_limiter = RateLimiter()
-
-@app.post("/api/resources")
-async def create_resource_with_advanced_errors(
-    resource_data: Dict[str, Any],
-    request: Request,
-    authorization: Optional[str] = Header(None),
-    x_client_tier: str = Header("standard"),
-    x_idempotency_key: Optional[str] = Header(None)
-):
+# 🗑️ Success: 204 No Content - Success with no data to return
+@app.delete("/menu/{item_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_menu_item(item_id: str):
     """
-    Comprehensive error handling demonstrating multiple 4xx scenarios
-    with contextual information and recovery suggestions
+    204 No Content: Successfully processed, but nothing to return.
+    Like clearing a table - the job is done, nothing more to say.
     """
-    client_id = request.client.host if request.client else "unknown"
-    
-    # 429: Rate Limiting with sophisticated context
-    is_limited, rate_info = rate_limiter.is_rate_limited(client_id, x_client_tier)
-    if is_limited:
-        retry_after = int(rate_info["reset_time"] - time.time())
-        
+    if item_id not in menu_items:
+        # Can't delete what doesn't exist
         raise HTTPException(
-            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail={
-                "error": "RATE_LIMIT_EXCEEDED",
-                "message": f"Rate limit exceeded for {x_client_tier} tier",
-                "rate_limit_info": {
-                    "tier": x_client_tier,
-                    "current_usage": rate_info["current_count"],
-                    "limit": rate_info["limit"],
-                    "window_seconds": rate_info["window"],
-                    "reset_timestamp": rate_info["reset_time"]
-                },
-                "retry_after_seconds": retry_after,
-                "upgrade_info": {
-                    "message": "Upgrade to premium for higher limits",
-                    "upgrade_url": "/account/upgrade"
-                } if x_client_tier == "standard" else None
-            },
-            headers={
-                "Retry-After": str(retry_after),
-                "X-RateLimit-Limit": str(rate_info["limit"]),
-                "X-RateLimit-Remaining": str(max(0, rate_info["limit"] - rate_info["current_count"])),
-                "X-RateLimit-Reset": str(int(rate_info["reset_time"]))
-            }
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Menu item not found"
         )
     
-    # 401: Enhanced authentication with multiple auth methods
-    if not authorization:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail={
-                "error": "AUTHENTICATION_REQUIRED",
-                "message": "Valid authentication credentials required",
-                "supported_auth_methods": [
-                    {
-                        "method": "Bearer Token",
-                        "header": "Authorization: Bearer <token>",
-                        "docs": "/docs/auth/bearer"
-                    },
-                    {
-                        "method": "API Key",
-                        "header": "X-API-Key: <key>",
-                        "docs": "/docs/auth/api-key"
-                    }
-                ],
-                "auth_endpoints": {
-                    "login": "/auth/login",
-                    "register": "/auth/register",
-                    "refresh": "/auth/refresh"
-                }
-            },
-            headers={
-                "WWW-Authenticate": 'Bearer realm="api", charset="UTF-8"',
-                "X-Auth-Required": "true"
-            }
-        )
+    # Remove the item
+    del menu_items[item_id]
     
-    # 400: Advanced request validation with field-level context
-    validation_errors = []
-    
-    if not resource_data.get("name"):
-        validation_errors.append({
-            "field": "name",
-            "code": "REQUIRED_FIELD_MISSING",
-            "message": "Name is required",
-            "acceptable_values": "Non-empty string, 1-100 characters"
-        })
-    
-    if "email" in resource_data:
-        email = resource_data["email"]
-        if not email or "@" not in email:
-            validation_errors.append({
-                "field": "email",
-                "code": "INVALID_EMAIL_FORMAT",
-                "message": "Invalid email format",
-                "provided_value": email,
-                "example": "user@example.com"
-            })
-    
-    if validation_errors:
+    # No return needed for 204 - silence means success!
+
+# ❌ Client Error: 400 Bad Request - Invalid input
+@app.post("/order")
+async def place_order(order_data: Dict[str, any]):
+    """
+    400 Bad Request: The request is malformed or invalid.
+    Like ordering in a language the waiter doesn't understand.
+    """
+    # Validate the order has required fields
+    if "items" not in order_data:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail={
-                "error": "REQUEST_VALIDATION_FAILED",
-                "message": "Request contains invalid or missing data",
-                "validation_errors": validation_errors,
-                "request_id": request.headers.get("X-Request-ID", str(uuid.uuid4())),
-                "help": {
-                    "schema_url": "/schemas/resource",
-                    "examples_url": "/docs/examples/resource-creation",
-                    "validation_rules": "/docs/validation-rules"
-                }
+                "error": "Invalid order format",
+                "message": "Order must include 'items' field",
+                "example": {"items": ["item_1", "item_2"]}
             }
         )
     
-    # 409: Idempotency conflict detection
-    if x_idempotency_key:
-        # Simulate idempotency key conflict
-        if x_idempotency_key == "duplicate-key":
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail={
-                    "error": "IDEMPOTENCY_KEY_CONFLICT",
-                    "message": "Request with this idempotency key already processed",
-                    "conflict_details": {
-                        "idempotency_key": x_idempotency_key,
-                        "original_request_id": "req_12345",
-                        "original_timestamp": "2024-01-15T10:30:00Z",
-                        "original_result": {
-                            "resource_id": "res_67890",
-                            "status": "created"
-                        }
-                    },
-                    "resolution": {
-                        "suggestion": "Use a different idempotency key for new requests",
-                        "retrieve_original": "/resources/res_67890"
-                    }
-                }
-            )
-    
-    # Success case
-    resource_id = f"res_{uuid.uuid4().hex[:8]}"
-    return {
-        "id": resource_id,
-        "name": resource_data["name"],
-        "status": "created",
-        "created_at": datetime.utcnow().isoformat()
-    }
+    # Process the valid order...
+    return {"status": "order_received", "order_id": "order_123"}
 
-@app.get("/resources/{resource_id}")
-async def get_resource_with_contextual_404(
-    resource_id: str,
-    include_suggestions: bool = True
-):
+# 🔐 Client Error: 401 Unauthorized - Authentication required
+@app.get("/admin/reports")
+async def get_admin_reports(authorization: Optional[str] = None):
     """
-    404: Not Found with intelligent suggestions and similar resources
+    401 Unauthorized: Authentication credentials are missing or invalid.
+    Like trying to enter the kitchen without being staff.
     """
-    # Simulate resource lookup
-    if resource_id.startswith("res_"):
-        return {"id": resource_id, "name": f"Resource {resource_id}"}
+    if not authorization:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication required",
+            headers={"WWW-Authenticate": "Bearer"}  # Tells client how to authenticate
+        )
     
-    # Advanced 404 with context and suggestions
-    suggestions = []
-    if include_suggestions:
-        # Find similar resource IDs (in real app, use database similarity search)
-        if resource_id.isdigit():
-            suggestions.extend([
-                {"id": f"res_{resource_id}", "reason": "Possible missing 'res_' prefix"},
-                {"id": f"usr_{resource_id}", "reason": "Possible user resource instead"}
-            ])
-        
-        # Recent resources that might be what user is looking for
-        suggestions.extend([
-            {"id": "res_abc123", "reason": "Recently created resource"},
-            {"id": "res_def456", "reason": "Popular resource"}
-        ])
+    # Validate the token (simplified for example)
+    if authorization != "Bearer valid-token":
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid authentication credentials"
+        )
     
-    raise HTTPException(
-        status_code=status.HTTP_404_NOT_FOUND,
-        detail={
-            "error": "RESOURCE_NOT_FOUND",
-            "message": f"Resource '{resource_id}' not found",
-            "resource_info": {
-                "type": "resource",
-                "id": resource_id,
-                "namespace": "default"
-            },
-            "suggestions": suggestions,
-            "help": {
-                "list_resources": "/resources",
-                "search": f"/resources/search?q={resource_id}",
-                "create_new": "/resources",
-                "api_docs": "/docs"
-            },
-            "context": {
-                "total_resources": 1250,
-                "last_created": "2024-01-15T10:30:00Z"
+    return {"reports": ["daily_sales", "inventory", "staff_hours"]}
+
+# 🔍 Client Error: 404 Not Found - Resource doesn't exist
+@app.get("/tables/{table_number}")
+async def get_table_info(table_number: int):
+    """
+    404 Not Found: The requested resource doesn't exist.
+    Like asking for table 99 in a restaurant with only 20 tables.
+    """
+    # Our restaurant has tables 1-20
+    if table_number < 1 or table_number > 20:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={
+                "error": "Table not found",
+                "message": f"Table {table_number} does not exist",
+                "available_tables": "1-20"
             }
-        }
-    )
-
-@app.put("/resources/{resource_id}")  
-async def update_resource_precondition_handling(
-    resource_id: str,
-    updates: Dict[str, Any],
-    if_match: Optional[str] = Header(None),
-    if_unmodified_since: Optional[str] = Header(None),
-    x_conflict_resolution: Literal["fail", "force", "merge"] = Header("fail")
-):
-    """
-    412: Precondition Failed with conflict resolution strategies
-    Demonstrates sophisticated conflict handling
-    """
-    # Simulate current resource state
-    current_resource = {
-        "id": resource_id,
-        "name": "Current Resource",
-        "version": 5,
-        "last_modified": "2024-01-15T10:30:00Z",
-        "etag": f'"{resource_id}-v5"'
-    }
+        )
     
-    # Check If-Match precondition
-    if if_match and if_match != current_resource["etag"]:
-        conflict_info = {
-            "conflict_type": "version_mismatch",
-            "provided_etag": if_match,
-            "current_etag": current_resource["etag"],
-            "current_version": current_resource["version"],
-            "last_modified": current_resource["last_modified"]
-        }
-        
-        if x_conflict_resolution == "force":
-            # Force update despite conflict (dangerous but sometimes needed)
-            pass  # Continue with update
-        elif x_conflict_resolution == "merge":
-            # Attempt intelligent merge
-            conflict_info["resolution"] = "automatic_merge_attempted"
-            conflict_info["merge_strategy"] = "field_level_merge"
-        else:
-            # Fail with detailed conflict information
-            raise HTTPException(
-                status_code=status.HTTP_412_PRECONDITION_FAILED,
-                detail={
-                    "error": "PRECONDITION_FAILED",
-                    "message": "Resource has been modified since last retrieval",
-                    "conflict_info": conflict_info,
-                    "resolution_options": [
-                        {
-                            "strategy": "force",
-                            "description": "Override with X-Conflict-Resolution: force",
-                            "warning": "This will overwrite concurrent changes"
-                        },
-                        {
-                            "strategy": "merge", 
-                            "description": "Attempt automatic merge with X-Conflict-Resolution: merge",
-                            "note": "May not be possible for all field types"
-                        },
-                        {
-                            "strategy": "fetch_and_retry",
-                            "description": "GET latest version and retry update",
-                            "recommended": True
-                        }
-                    ],
-                    "current_resource_url": f"/resources/{resource_id}"
-                }
-            )
-    
-    # Update successful
-    new_version = current_resource["version"] + 1
     return {
-        "id": resource_id,
-        "name": updates.get("name", current_resource["name"]),
-        "version": new_version,
-        "etag": f'"{resource_id}-v{new_version}"',
-        "last_modified": datetime.utcnow().isoformat(),
-        "update_info": {
-            "conflict_resolution": x_conflict_resolution,
-            "fields_updated": list(updates.keys())
-        }
+        "table_number": table_number,
+        "status": "available",
+        "capacity": 4
     }
-
 ```
 
-## 🔥 Advanced Server Error Patterns
+### ✅ What Just Happened?
 
-### 🛠️ Resilient Server Error Handling
+In restaurant terms, we just implemented:
+1. **Menu browsing** (200 OK when item exists)
+2. **Adding new dishes** (201 Created with location info)
+3. **Removing dishes** (204 No Content - job done silently)
+4. **Handling confused customers** (400 Bad Request)
+5. **Staff-only areas** (401 Unauthorized)
+6. **Non-existent tables** (404 Not Found)
+
+### 💡 Best Practices for Basic Status Codes
 
 ```python
-import traceback
-import logging
-from datetime import timedelta
+# ✅ DO: Use semantic status codes
+@app.post("/users", status_code=status.HTTP_201_CREATED)  # Clear intent
 
-class ServiceHealthMonitor:
-    """Monitor service health and dependencies"""
-    def __init__(self):
-        self.service_status = {
-            "database": {"status": "healthy", "last_check": datetime.utcnow()},
-            "cache": {"status": "healthy", "last_check": datetime.utcnow()},
-            "auth_service": {"status": "degraded", "last_check": datetime.utcnow()},
-            "payment_service": {"status": "healthy", "last_check": datetime.utcnow()}
-        }
-    
-    def get_overall_health(self) -> dict:
-        unhealthy_services = [
-            name for name, info in self.service_status.items() 
-            if info["status"] != "healthy"
-        ]
-        
-        if not unhealthy_services:
-            return {"status": "healthy", "degraded_services": []}
-        elif len(unhealthy_services) <= 1:
-            return {"status": "degraded", "degraded_services": unhealthy_services}
-        else:
-            return {"status": "unhealthy", "degraded_services": unhealthy_services}
+# ❌ DON'T: Always return 200
+@app.post("/users")  # Returns 200 even though creating resource
 
-health_monitor = ServiceHealthMonitor()
-
-@app.get("/api/system/health")
-async def system_health_check():
-    """
-    Advanced health check with service dependency status
-    Returns appropriate status codes based on system health
-    """
-    health = health_monitor.get_overall_health()
-    
-    response_data = {
-        "timestamp": datetime.utcnow().isoformat(),
-        "overall_status": health["status"],
-        "services": health_monitor.service_status,
-        "degraded_services": health["degraded_services"],
-        "version": "2.1.0",
-        "uptime_seconds": 3600  # Mock uptime
+# ✅ DO: Provide helpful error details
+raise HTTPException(
+    status_code=404,
+    detail={
+        "error": "USER_NOT_FOUND",
+        "message": "User does not exist",
+        "user_id": user_id
     }
-    
-    if health["status"] == "healthy":
-        return JSONResponse(
-            status_code=status.HTTP_200_OK,
-            content=response_data
-        )
-    elif health["status"] == "degraded":
-        return JSONResponse(
-            status_code=status.HTTP_200_OK,  # Still serving but with warnings
-            content={
-                **response_data,
-                "warnings": [
-                    f"Service {service} is degraded" 
-                    for service in health["degraded_services"]
-                ]
-            },
-            headers={"X-Service-Status": "degraded"}
-        )
-    else:
-        return JSONResponse(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            content=response_data,
-            headers={
-                "Retry-After": "300",  # 5 minutes
-                "X-Service-Status": "unhealthy"
-            }
-        )
+)
 
-@app.get("/api/external-integration")
-async def external_service_integration():
-    """
-    502: Bad Gateway - Sophisticated upstream service error handling
-    Demonstrates circuit breaker and fallback patterns
-    """
-    try:
-        # Simulate external service call failure
-        service_name = "payment_processor"
-        raise Exception("Connection timeout")
-        
-    except Exception as e:
-        error_id = str(uuid.uuid4())
-        
-        # Log for monitoring and alerting
-        logging.error(f"External service error: {error_id}", extra={
-            "service": service_name,
-            "error": str(e),
-            "error_id": error_id
-        })
-        
-        # Check if we have a fallback strategy
-        fallback_available = service_name in ["payment_processor", "notification_service"]
-        
-        detail = {
-            "error": "UPSTREAM_SERVICE_ERROR",
-            "message": f"External service '{service_name}' is currently unavailable",
-            "error_id": error_id,
-            "service_info": {
-                "name": service_name,
-                "type": "external_api",
-                "last_successful": "2024-01-15T09:30:00Z",
-                "status_page": f"https://status.{service_name}.com"
-            },
-            "impact": {
-                "affected_features": ["payment_processing", "order_confirmation"],
-                "user_facing": True,
-                "estimated_resolution": "15-30 minutes"
-            }
-        }
-        
-        if fallback_available:
-            detail["fallback"] = {
-                "available": True,
-                "method": "cached_data",
-                "limitation": "Limited functionality available"
-            }
-            # Could return 200 with fallback data instead
-        
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=detail,
-            headers={
-                "X-Error-ID": error_id,
-                "X-Service-Status": service_name,
-                "Retry-After": "900"  # 15 minutes
-            }
-        )
-
-@app.get("/api/resources/intensive-operation")
-async def intensive_operation_with_timeout():
-    """
-    504: Gateway Timeout - Operation timeout with context
-    Handles long-running operations that exceed time limits
-    """
-    operation_id = str(uuid.uuid4())
-    timeout_seconds = 30
-    
-    try:
-        # Simulate long-running operation with timeout
-        result = await asyncio.wait_for(
-            simulate_intensive_task(),
-            timeout=timeout_seconds
-        )
-        return {"result": result, "operation_id": operation_id}
-        
-    except asyncio.TimeoutError:
-        # Operation timed out - provide fallback options
-        raise HTTPException(
-            status_code=status.HTTP_504_GATEWAY_TIMEOUT,
-            detail={
-                "error": "OPERATION_TIMEOUT",
-                "message": f"Operation exceeded {timeout_seconds} second timeout",
-                "operation_info": {
-                    "operation_id": operation_id,
-                    "timeout_seconds": timeout_seconds,
-                    "operation_type": "data_processing",
-                    "started_at": datetime.utcnow().isoformat()
-                },
-                "alternatives": [
-                    {
-                        "method": "async_processing",
-                        "description": "Submit as background job",
-                        "endpoint": "/api/jobs/submit",
-                        "estimated_completion": "5-10 minutes"
-                    },
-                    {
-                        "method": "simplified_operation", 
-                        "description": "Use faster, simplified processing",
-                        "endpoint": "/api/resources/simple-operation",
-                        "trade_offs": "Reduced accuracy, faster results"
-                    }
-                ],
-                "status_check": {
-                    "url": f"/api/operations/{operation_id}/status",
-                    "polling_interval": "30 seconds"
-                }
-            },
-            headers={
-                "X-Operation-ID": operation_id,
-                "X-Timeout-Seconds": str(timeout_seconds),
-                "Retry-After": "300"
-            }
-        )
-
-async def simulate_intensive_task():
-    """Simulate a long-running task"""
-    await asyncio.sleep(35)  # Will timeout
-    return {"processed": 1000, "duration": 35}
-
-@app.exception_handler(Exception)
-async def global_exception_handler(request: Request, exc: Exception):
-    """
-    500: Internal Server Error - Advanced global exception handling
-    Provides comprehensive error context while protecting sensitive information
-    """
-    error_id = str(uuid.uuid4())
-    timestamp = datetime.utcnow()
-    
-    # Extract safe error information
-    error_type = type(exc).__name__
-    error_message = str(exc)
-    
-    # Log full error details for internal monitoring
-    logging.error(f"Unhandled exception: {error_id}", extra={
-        "error_id": error_id,
-        "error_type": error_type,
-        "error_message": error_message,
-        "traceback": traceback.format_exc(),
-        "request_path": str(request.url.path),
-        "request_method": request.method,
-        "user_agent": request.headers.get("user-agent"),
-        "client_ip": request.client.host if request.client else None
-    })
-    
-    # Determine error severity and user-facing message
-    is_critical = error_type in ["DatabaseError", "SecurityError", "AuthenticationError"]
-    
-    if is_critical:
-        user_message = "A critical system error occurred. Our team has been notified."
-        estimated_resolution = "1-2 hours"
-    else:
-        user_message = "An unexpected error occurred. Please try again."
-        estimated_resolution = "15-30 minutes"
-    
-    return JSONResponse(
-        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-        content={
-            "error": "INTERNAL_SERVER_ERROR",
-            "message": user_message,
-            "error_details": {
-                "error_id": error_id,
-                "timestamp": timestamp.isoformat(),
-                "error_type": error_type,
-                "severity": "critical" if is_critical else "standard"
-            },
-            "support_info": {
-                "contact": "support@api.example.com",
-                "documentation": "https://docs.api.example.com/errors",
-                "status_page": "https://status.api.example.com",
-                "estimated_resolution": estimated_resolution
-            },
-            "request_info": {
-                "request_id": request.headers.get("X-Request-ID", error_id),
-                "path": str(request.url.path),
-                "method": request.method
-            }
-        },
-        headers={
-            "X-Error-ID": error_id,
-            "X-Error-Type": error_type,
-            "X-Support-Contact": "support@api.example.com"
-        }
-    )
+# ❌ DON'T: Return generic errors
+raise HTTPException(status_code=404, detail="Not found")  # Not helpful
 ```
 
-## 🎯 Strategic Status Code Decision Framework
+## 📈 Intermediate Patterns: Smart Status Code Usage
 
-### 📊 Advanced Decision Matrix
+### 🎯 Analogy: Status Codes as GPS Navigation Feedback
+
+As your API grows more sophisticated, think of status codes like GPS navigation:
+- **302 Found**: "Take this temporary detour"
+- **304 Not Modified**: "You're already at the destination"
+- **409 Conflict**: "Can't merge into that lane - it's occupied"
+- **429 Too Many Requests**: "Slow down! You're going too fast"
+
+### 📊 Enhanced Status Code Architecture
 
 ```mermaid
 graph LR
-    A[🌐 Request Received] --> B{Request Valid?}
+    A[🌐 Client Request] --> B{Request Analysis}
     
-    B -->|No| C{What's Wrong?}
-    C --> C1[Bad Syntax → 400]
-    C --> C2[Missing Auth → 401] 
-    C --> C3[Insufficient Perms → 403]
-    C --> C4[Resource Missing → 404]
-    C --> C5[Method Not Allowed → 405]
-    C --> C6[Conflict → 409]
-    C --> C7[Validation Failed → 422]
-    C --> C8[Rate Limited → 429]
+    B --> C{Valid?}
+    C -->|Yes| D{Resource Exists?}
+    C -->|No| E[400 Bad Request]
     
-    B -->|Yes| D{Can Process?}
-    D -->|No| E{Why Not?}
-    E --> E1[Server Error → 500]
-    E --> E2[External Service Down → 502]
-    E --> E3[Overloaded → 503]
-    E --> E4[Timeout → 504]
+    D -->|Yes| F{Authorized?}
+    D -->|No| G[404 Not Found]
     
-    D -->|Yes| F{Operation Type?}
-    F --> F1[Create → 201]
-    F --> F2[Update/Read → 200]
-    F --> F3[Delete → 204]
-    F --> F4[Async → 202]
-    F --> F5[Partial → 206]
-    F --> F6[Batch Mixed → 207]
-    F --> F7[No Change → 304]
+    F -->|Yes| H{Method Allowed?}
+    F -->|No| I[401/403]
+    
+    H -->|Yes| J{Process Request}
+    H -->|No| K[405 Method Not Allowed]
+    
+    J --> L{Success?}
+    L -->|Yes| M[2xx Success]
+    L -->|No| N[5xx Server Error]
     
     style A fill:#e1f5fe
-    style C1 fill:#fff3e0
-    style C2 fill:#fff3e0
-    style C3 fill:#fff3e0
-    style C4 fill:#fff3e0
-    style E1 fill:#ffebee
-    style E2 fill:#ffebee
-    style F1 fill:#e8f5e8
-    style F2 fill:#e8f5e8
+    style M fill:#c8e6c9
+    style E fill:#ffccbc
+    style N fill:#ffcdd2
 ```
 
-### 📋 Context-Aware Status Code Selection
+### 🔧 Intermediate Implementation: Conditional Responses
 
-| Context | Primary Code | Alternative | Reasoning |
-|---------|-------------|-------------|-----------|
-| **Batch Operations** | 207 Multi-Status | 200 OK | Use 207 when results vary per item |
-| **Large Dataset Export** | 206 Partial Content | 200 OK | Use 206 for chunked/paginated responses |
-| **Async Processing** | 202 Accepted | 200 OK | Use 202 when processing continues after response |
-| **Resource Updates** | 200 OK | 204 No Content | Use 204 when no response body needed |
-| **Conditional Requests** | 304 Not Modified | 200 OK | Use 304 when client cache is valid |
-| **API Versioning** | 301 Moved Permanently | 302 Found | Use 301 for permanent API migrations |
-| **Load Balancing** | 307 Temporary Redirect | 302 Found | Use 307 to preserve HTTP method |
-| **Rate Limiting** | 429 Too Many Requests | 503 Service Unavailable | Use 429 for client-specific limits |
-| **Validation Errors** | 422 Unprocessable Entity | 400 Bad Request | Use 422 for semantic validation failures |
-| **Conflict Resolution** | 412 Precondition Failed | 409 Conflict | Use 412 for conditional request failures |
+```python
+from fastapi import Request, Response, Header
+from typing import Optional
+import hashlib
+import json
 
-## 🎓 Summary
+# Simulated data store with versioning
+data_store = {
+    "config_v1": {
+        "data": {"theme": "dark", "language": "en"},
+        "version": 1,
+        "last_modified": "2024-01-15T10:00:00Z"
+    }
+}
 
-Advanced HTTP status code patterns enable you to:
+# 🔄 Redirection: 304 Not Modified - Smart caching
+@app.get("/config/{config_id}")
+async def get_config_with_caching(
+    config_id: str,
+    response: Response,
+    if_none_match: Optional[str] = Header(None)  # Client's cached version
+):
+    """
+    304 Not Modified: Client's cached version is still valid.
+    Like checking if the menu changed since your last visit.
+    """
+    if config_id not in data_store:
+        raise HTTPException(status_code=404, detail="Configuration not found")
+    
+    config = data_store[config_id]
+    
+    # Generate ETag (like a version fingerprint)
+    etag = f'"{config_id}-v{config["version"]}"'
+    
+    # Check if client has the latest version
+    if if_none_match == etag:
+        # Client already has the latest - save bandwidth!
+        return Response(
+            status_code=status.HTTP_304_NOT_MODIFIED,
+            headers={
+                "ETag": etag,
+                "Cache-Control": "max-age=3600"  # Cache for 1 hour
+            }
+        )
+    
+    # Client needs the update
+    response.headers["ETag"] = etag
+    response.headers["Cache-Control"] = "max-age=3600"
+    
+    return {
+        "data": config["data"],
+        "version": config["version"],
+        "last_modified": config["last_modified"]
+    }
 
-- 🎯 **Provide Rich Context**: Detailed error information with recovery suggestions
-- 🔄 **Handle Complex Operations**: Batch processing, async operations, partial content
-- 🛡️ **Implement Resilience**: Circuit breakers, fallbacks, and graceful degradation
-- 📊 **Support Conditional Logic**: ETags, conditional updates, smart redirects
-- 🚀 **Optimize Performance**: Caching, range requests, and intelligent routing
+# ⏳ Async Processing: 202 Accepted
+@app.post("/reports/generate", status_code=status.HTTP_202_ACCEPTED)
+async def generate_report(report_type: str, background_tasks: BackgroundTasks):
+    """
+    202 Accepted: Request accepted, processing continues asynchronously.
+    Like placing a complex order that takes time to prepare.
+    """
+    # Validate report type
+    valid_reports = ["sales", "inventory", "performance"]
+    if report_type not in valid_reports:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid report type. Choose from: {valid_reports}"
+        )
+    
+    # Generate a job ID for tracking
+    job_id = f"job_{datetime.utcnow().timestamp()}"
+    
+    # Queue the background job (like sending order to kitchen)
+    background_tasks.add_task(generate_report_async, job_id, report_type)
+    
+    # Return immediately with tracking info
+    return {
+        "status": "accepted",
+        "message": f"Report generation started",
+        "job_id": job_id,
+        "check_status_at": f"/reports/status/{job_id}",
+        "estimated_completion_seconds": 30
+    }
 
-### 🔗 Key Takeaways
+# 🚦 Rate Limiting: 429 Too Many Requests
+from collections import defaultdict
+from datetime import datetime, timedelta
 
-| Pattern | HTTP Code | Use Case | Example |
-|---------|----------|----------|---------|
-| **Intelligent Batch** | 207 | Mixed success/failure | Bulk operations with individual results |
-| **Range Requests** | 206 | Large datasets | Paginated exports, resumable downloads |
-| **Smart Async** | 202 | Long operations | Workflow execution with callbacks |
-| **Conditional Updates** | 304/412 | Concurrency control | ETag-based conditional requests |
-| **Context-Aware Redirects** | 301/302/307 | Intelligent routing | API versioning, geo-optimization |
-| **Advanced Rate Limiting** | 429 | Tier-based limits | Multi-tier rate limiting with upgrade paths |
-| **Sophisticated 404** | 404 | Resource discovery | Suggestions and similar resources |
-| **Resilient Errors** | 502/503/504 | Service reliability | Circuit breakers, fallback strategies |
+# Simple in-memory rate limiter
+request_counts = defaultdict(list)
 
-Ready to implement advanced error handling? Let's explore [Enterprise Error Handling Patterns](/docs/03_intermediate/07-error-handling) next! 🚀
+@app.post("/api/data")
+async def rate_limited_endpoint(request: Request):
+    """
+    429 Too Many Requests: Client is sending too many requests.
+    Like a customer ordering faster than the kitchen can cook.
+    """
+    # Get client IP
+    client_ip = request.client.host
+    
+    # Clean old requests (older than 1 minute)
+    now = datetime.utcnow()
+    request_counts[client_ip] = [
+        req_time for req_time in request_counts[client_ip]
+        if now - req_time < timedelta(minutes=1)
+    ]
+    
+    # Check rate limit (10 requests per minute)
+    if len(request_counts[client_ip]) >= 10:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail={
+                "error": "Rate limit exceeded",
+                "message": "Maximum 10 requests per minute",
+                "retry_after_seconds": 60
+            },
+            headers={
+                "Retry-After": "60",  # Standard header for retry timing
+                "X-RateLimit-Limit": "10",
+                "X-RateLimit-Remaining": "0",
+                "X-RateLimit-Reset": str(int((now + timedelta(minutes=1)).timestamp()))
+            }
+        )
+    
+    # Record this request
+    request_counts[client_ip].append(now)
+    
+    # Process the request
+    return {
+        "data": "Your API response",
+        "rate_limit_remaining": 10 - len(request_counts[client_ip])
+    }
+
+# ⚔️ Conflict Resolution: 409 Conflict
+@app.put("/users/{user_id}/email")
+async def update_user_email(user_id: str, new_email: str):
+    """
+    409 Conflict: Request conflicts with current state.
+    Like trying to book a table that's already reserved.
+    """
+    # Check if email already exists (simplified)
+    existing_emails = ["john@example.com", "jane@example.com"]
+    
+    if new_email in existing_emails:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "error": "EMAIL_ALREADY_EXISTS",
+                "message": f"Email '{new_email}' is already in use",
+                "field": "email",
+                "suggestion": "Please use a different email address"
+            }
+        )
+    
+    # Update successful
+    return {
+        "user_id": user_id,
+        "email": new_email,
+        "updated_at": datetime.utcnow().isoformat()
+    }
+```
+
+### 📊 Status Code Decision Tree
+
+```mermaid
+graph TD
+    A[Request Received] --> B{Is Request Valid?}
+    
+    B -->|No| C[400 Bad Request]
+    B -->|Yes| D{Is User Authenticated?}
+    
+    D -->|No| E[401 Unauthorized]
+    D -->|Yes| F{Is User Authorized?}
+    
+    F -->|No| G[403 Forbidden]
+    F -->|Yes| H{Does Resource Exist?}
+    
+    H -->|No| I[404 Not Found]
+    H -->|Yes| J{Is Method Allowed?}
+    
+    J -->|No| K[405 Method Not Allowed]
+    J -->|Yes| L{Any Conflicts?}
+    
+    L -->|Yes| M[409 Conflict]
+    L -->|No| N{Can Process Now?}
+    
+    N -->|No| O[202 Accepted]
+    N -->|Yes| P{Process Request}
+    
+    P -->|Success| Q{Return Data?}
+    P -->|Error| R[5xx Server Error]
+    
+    Q -->|Yes| S[200 OK]
+    Q -->|No| T[204 No Content]
+    
+    style A fill:#e1f5fe
+    style S fill:#c8e6c9
+    style T fill:#c8e6c9
+    style C fill:#ffccbc
+    style R fill:#ffcdd2
+```
+
+## 🚀 Advanced Patterns: Enterprise-Grade Status Codes
+
+### 🎯 Analogy: Status Codes as Air Traffic Control
+
+At the enterprise level, status codes become like air traffic control systems:
+- **206 Partial Content**: "Here's part of your cargo, more coming"
+- **207 Multi-Status**: "Multiple aircraft, different landing statuses"
+- **412 Precondition Failed**: "Weather conditions changed, can't land"
+- **503 Service Unavailable**: "Airport temporarily closed for maintenance"
+
+### 🔧 Advanced Implementation: Sophisticated Status Code Patterns
+
+```python
+from fastapi import BackgroundTasks
+from typing import List, Dict, Any, Literal
+import asyncio
+import uuid
+
+# 📊 Multi-Status Operations: 207 Multi-Status
+@app.post("/bulk/users", status_code=status.HTTP_207_MULTI_STATUS)
+async def create_bulk_users(users: List[Dict[str, Any]]):
+    """
+    207 Multi-Status: Different results for different items in batch.
+    Like a group reservation where some tables are available, others aren't.
+    """
+    results = []
+    
+    for index, user_data in enumerate(users):
+        try:
+            # Validate each user individually
+            if not user_data.get("email"):
+                results.append({
+                    "index": index,
+                    "status": 400,
+                    "error": "MISSING_EMAIL",
+                    "message": "Email is required"
+                })
+                continue
+            
+            # Check for duplicates (simplified)
+            if user_data["email"].startswith("existing"):
+                results.append({
+                    "index": index,
+                    "status": 409,
+                    "error": "DUPLICATE_EMAIL",
+                    "message": f"Email {user_data['email']} already exists"
+                })
+                continue
+            
+            # Simulate server error for some users
+            if user_data.get("simulate_error"):
+                results.append({
+                    "index": index,
+                    "status": 500,
+                    "error": "INTERNAL_ERROR",
+                    "message": "Failed to create user"
+                })
+                continue
+            
+            # Success case
+            user_id = f"user_{uuid.uuid4().hex[:8]}"
+            results.append({
+                "index": index,
+                "status": 201,
+                "data": {
+                    "user_id": user_id,
+                    "email": user_data["email"],
+                    "created_at": datetime.utcnow().isoformat()
+                }
+            })
+            
+        except Exception as e:
+            results.append({
+                "index": index,
+                "status": 500,
+                "error": "UNEXPECTED_ERROR",
+                "message": str(e)
+            })
+    
+    # Summary statistics
+    success_count = len([r for r in results if r["status"] < 300])
+    error_count = len(results) - success_count
+    
+    return {
+        "summary": {
+            "total": len(users),
+            "successful": success_count,
+            "failed": error_count
+        },
+        "results": results
+    }
+
+# 📦 Partial Content: 206 Partial Content
+@app.get("/large-dataset/{dataset_id}")
+async def get_partial_content(
+    dataset_id: str,
+    range_header: Optional[str] = Header(None, alias="Range")
+):
+    """
+    206 Partial Content: Return only part of a large resource.
+    Like serving a buffet where guests take portions as needed.
+    """
+    # Simulate large dataset (1 million records)
+    total_records = 1_000_000
+    
+    # Default range
+    start, end = 0, 999
+    
+    # Parse Range header (e.g., "items=0-999")
+    if range_header and range_header.startswith("items="):
+        range_spec = range_header[6:]  # Remove "items="
+        if "-" in range_spec:
+            start_str, end_str = range_spec.split("-")
+            start = int(start_str) if start_str else 0
+            end = int(end_str) if end_str else start + 999
+    
+    # Ensure valid range
+    start = max(0, min(start, total_records - 1))
+    end = min(end, total_records - 1)
+    
+    # Generate partial data
+    data = [
+        {
+            "id": i,
+            "value": f"record_{i}",
+            "timestamp": datetime.utcnow().isoformat()
+        }
+        for i in range(start, end + 1)
+    ]
+    
+    # Return with proper headers
+    return Response(
+        content=json.dumps({
+            "data": data,
+            "range": {"start": start, "end": end, "total": total_records}
+        }),
+        status_code=status.HTTP_206_PARTIAL_CONTENT,
+        headers={
+            "Content-Range": f"items {start}-{end}/{total_records}",
+            "Accept-Ranges": "items",
+            "Content-Type": "application/json"
+        }
+    )
+
+# 🔒 Conditional Updates: 412 Precondition Failed
+@app.put("/documents/{doc_id}")
+async def update_document_with_etag(
+    doc_id: str,
+    content: Dict[str, Any],
+    if_match: Optional[str] = Header(None)  # ETag from client
+):
+    """
+    412 Precondition Failed: Conditional request preconditions not met.
+    Like trying to edit a document someone else just modified.
+    """
+    # Simulate document store
+    current_doc = {
+        "id": doc_id,
+        "content": {"title": "Original Title", "body": "Original content"},
+        "version": 3,
+        "etag": '"doc_v3"'
+    }
+    
+    # Check if client has the latest version
+    if if_match and if_match != current_doc["etag"]:
+        raise HTTPException(
+            status_code=status.HTTP_412_PRECONDITION_FAILED,
+            detail={
+                "error": "VERSION_CONFLICT",
+                "message": "Document has been modified by another user",
+                "current_version": current_doc["version"],
+                "your_version": if_match,
+                "suggestion": "Fetch the latest version and retry"
+            }
+        )
+    
+    # Update document
+    current_doc["content"] = content
+    current_doc["version"] += 1
+    current_doc["etag"] = f'"doc_v{current_doc["version"]}"'
+    
+    return {
+        "status": "updated",
+        "document": current_doc,
+        "new_etag": current_doc["etag"]
+    }
+
+# 🔧 Service Health: 503 Service Unavailable
+service_healthy = True  # Toggle for demo
+
+@app.get("/health")
+async def health_check():
+    """
+    503 Service Unavailable: Service temporarily unable to handle requests.
+    Like a restaurant closing temporarily for maintenance.
+    """
+    if not service_healthy:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail={
+                "error": "SERVICE_UNAVAILABLE",
+                "message": "Service is under maintenance",
+                "maintenance_info": {
+                    "reason": "Database upgrade in progress",
+                    "started_at": "2024-01-15T10:00:00Z",
+                    "expected_duration_minutes": 30
+                }
+            },
+            headers={
+                "Retry-After": "1800",  # 30 minutes
+                "X-Maintenance-Mode": "true"
+            }
+        )
+    
+    return {
+        "status": "healthy",
+        "services": {
+            "api": "operational",
+            "database": "operational",
+            "cache": "operational"
+        },
+        "timestamp": datetime.utcnow().isoformat()
+    }
+```
+
+### 📊 Enterprise Status Code Strategy
+
+```mermaid
+graph TB
+    A[Enterprise API Request] --> B{Load Balancer}
+    
+    B --> C{Health Check}
+    C -->|Unhealthy| D[503 Service Unavailable]
+    C -->|Healthy| E{Rate Limit}
+    
+    E -->|Exceeded| F[429 Too Many Requests]
+    E -->|OK| G{Authentication}
+    
+    G -->|Invalid| H[401 Unauthorized]
+    G -->|Valid| I{Authorization}
+    
+    I -->|Denied| J[403 Forbidden]
+    I -->|Allowed| K{Validation}
+    
+    K -->|Failed| L[400/422 Validation Error]
+    K -->|Passed| M{Business Logic}
+    
+    M -->|Conflict| N[409/412 Conflict]
+    M -->|Success| O{Response Type}
+    
+    O -->|Full| P[200 OK]
+    O -->|Partial| Q[206 Partial]
+    O -->|Multi| R[207 Multi-Status]
+    O -->|Async| S[202 Accepted]
+    
+    style A fill:#e1f5fe
+    style P fill:#c8e6c9
+    style Q fill:#c8e6c9
+    style R fill:#c8e6c9
+    style S fill:#c8e6c9
+    style D fill:#ffcdd2
+    style F fill:#ffccbc
+    style H fill:#ffccbc
+```
+
+## 🎓 Complete Status Code Reference
+
+### 📋 Status Code Cheat Sheet
+
+| Category | Code | Name | When to Use | Real-World Analogy |
+|----------|------|------|-------------|-------------------|
+| **2xx Success** | | | | |
+| ✅ | 200 | OK | Standard success response | "Here's your order!" |
+| 🆕 | 201 | Created | Resource created successfully | "Added to menu!" |
+| ⏳ | 202 | Accepted | Processing started (async) | "Order sent to kitchen" |
+| 🗑️ | 204 | No Content | Success with no response body | "Table cleared" |
+| 📦 | 206 | Partial Content | Returning part of resource | "Here's your appetizer" |
+| 📊 | 207 | Multi-Status | Mixed results in batch | "Some dishes ready, others not" |
+| **3xx Redirection** | | | | |
+| 🏠 | 301 | Moved Permanently | Resource permanently moved | "We've moved locations" |
+| 🔍 | 302 | Found | Temporary redirect | "Use side entrance today" |
+| 💾 | 304 | Not Modified | Use cached version | "Menu hasn't changed" |
+| 🔄 | 307 | Temporary Redirect | Temp redirect (keep method) | "Kitchen busy, try other counter" |
+| **4xx Client Error** | | | | |
+| ❌ | 400 | Bad Request | Invalid request syntax | "Can't understand order" |
+| 🔐 | 401 | Unauthorized | Authentication required | "Members only area" |
+| 🚫 | 403 | Forbidden | Access denied | "Kitchen staff only" |
+| 🔍 | 404 | Not Found | Resource doesn't exist | "Not on the menu" |
+| ⛔ | 405 | Method Not Allowed | HTTP method not supported | "No takeout on this item" |
+| ⚔️ | 409 | Conflict | Request conflicts with state | "Table already booked" |
+| 🔒 | 412 | Precondition Failed | Conditional request failed | "Price changed since you looked" |
+| 📝 | 422 | Unprocessable Entity | Validation error | "Invalid order combination" |
+| 🚦 | 429 | Too Many Requests | Rate limit exceeded | "Please wait before ordering again" |
+| **5xx Server Error** | | | | |
+| 💥 | 500 | Internal Server Error | Generic server error | "Kitchen equipment failure" |
+| 🌉 | 502 | Bad Gateway | Upstream service error | "Supplier delivery failed" |
+| 🔧 | 503 | Service Unavailable | Service temporarily down | "Closed for maintenance" |
+| ⏱️ | 504 | Gateway Timeout | Upstream timeout | "Kitchen taking too long" |
+
+## 🚀 Next Steps
+
+Now that you understand HTTP status codes:
+
+1. **Practice**: Implement each status code in your API
+2. **Monitor**: Track which status codes your API returns most
+3. **Document**: Clearly explain what each status code means in your API
+4. **Test**: Write tests for each status code scenario
+
+### 🔗 Related Topics
+
+Ready to dive deeper? Explore these related concepts:
+- [Error Handling Best Practices](/docs/02_foundation/05-error-handling)
+- [API Versioning Strategies](/docs/02_foundation/06-api-versioning)
+- [Request/Response Handling](/docs/02_foundation/02-request-handling)
+
+## 💡 Pro Tips
+
+1. **Be Specific**: Use the most specific status code that fits
+2. **Be Consistent**: Same situations should return same codes
+3. **Be Helpful**: Include actionable error messages
+4. **Be Standards-Compliant**: Follow HTTP specifications
+
+Remember: Status codes are your API's way of communicating clearly with clients. Choose them wisely! 🎯
