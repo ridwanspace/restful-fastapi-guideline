@@ -1,0 +1,715 @@
+## 15. Real-time Communication with WebSockets
+
+WebSockets provide a full-duplex communication channel over a single TCP connection, enabling real-time, bidirectional data exchange between clients and servers. FastAPI offers robust support for WebSockets, making it straightforward to build interactive applications like chat apps, live dashboards, and collaborative tools.
+
+### Introduction to WebSockets in FastAPI
+
+FastAPI uses the `WebSocket` class from Starlette (its underlying ASGI framework) to handle WebSocket connections. You define WebSocket endpoints similarly to HTTP endpoints, using a decorator like `@app.websocket("/ws")`.
+
+**Key Concepts:**
+*   **`WebSocket` Dependency:** Injected into your path operation function to interact with the WebSocket connection.
+*   **Connection Lifecycle:** FastAPI manages the WebSocket handshake and connection state.
+*   **Sending/Receiving Data:** You can send and receive various data types (text, JSON, bytes).
+
+**Basic Setup Example:**
+
+```python
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, status, WebSocketState
+from typing import List, Dict, Any, Optional
+import uvicorn
+import logging
+import asyncio # Added for broadcast example
+
+app = FastAPI()
+logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO) # Basic logging config
+
+class ConnectionManager:
+    def __init__(self):
+        self.active_connections: List[WebSocket] = []
+
+    async def connect(self, websocket: WebSocket):
+        await websocket.accept()
+        self.active_connections.append(websocket)
+        logger.info(f"WebSocket {websocket.client} connected. Total connections: {len(self.active_connections)}")
+
+    def disconnect(self, websocket: WebSocket):
+        if websocket in self.active_connections:
+            self.active_connections.remove(websocket)
+            logger.info(f"WebSocket {websocket.client} disconnected. Total connections: {len(self.active_connections)}")
+
+    async def send_personal_message(self, message: str, websocket: WebSocket):
+        if websocket.client_state == WebSocketState.CONNECTED:
+            try:
+                await websocket.send_text(message)
+            except Exception as e:
+                logger.error(f"Error sending personal message to {websocket.client}: {e}")
+                # self.disconnect(websocket) # Consider disconnecting on send error
+
+    async def broadcast(self, message: str, exclude_websocket: Optional[WebSocket] = None):
+        disconnected_clients = []
+        for connection in self.active_connections:
+            if connection != exclude_websocket and connection.client_state == WebSocketState.CONNECTED:
+                try:
+                    await connection.send_text(message)
+                except Exception as e: 
+                    logger.error(f"Error broadcasting to {connection.client}: {e}. Marking for disconnection.")
+                    disconnected_clients.append(connection)
+        
+        for ws_client in disconnected_clients:
+            self.disconnect(ws_client)
+
+manager = ConnectionManager()
+
+@app.websocket("/ws/{client_id}")
+async def websocket_endpoint(websocket: WebSocket, client_id: int):
+    await manager.connect(websocket)
+    await manager.broadcast(f"Client #{client_id} joined the chat", exclude_websocket=websocket)
+    try:
+        while True:
+            data = await websocket.receive_text()
+            logger.info(f"Received from client #{client_id}: {data}")
+            await manager.send_personal_message(f"You (Client #{client_id}) wrote: {data}", websocket)
+            await manager.broadcast(f"Client #{client_id} says: {data}", exclude_websocket=websocket)
+    except WebSocketDisconnect:
+        logger.info(f"Client #{client_id} disconnected gracefully.")
+    except Exception as e:
+        logger.error(f"Unexpected error for client #{client_id}: {e}", exc_info=True)
+        if websocket.client_state != WebSocketState.DISCONNECTED:
+            await websocket.close(code=status.WS_1011_INTERNAL_ERROR)
+    finally:
+        manager.disconnect(websocket)
+        # Ensure broadcast doesn't happen if manager is already empty or for other reasons
+        if manager.active_connections:
+             await manager.broadcast(f"Client #{client_id} left the chat", exclude_websocket=websocket)
+
+# if __name__ == "__main__":
+#     uvicorn.run(app, host="0.0.0.0", port=8000)
+```
+*In a production scenario, the `ConnectionManager` would need to be more sophisticated, potentially using a distributed store like Redis if you have multiple server instances.*
+
+### Handling WebSocket Connections
+
+Managing the lifecycle of a WebSocket connection involves accepting the connection, handling disconnections gracefully, and potentially performing actions at each stage.
+
+*   **`await websocket.accept()`:** Must be called to accept an incoming WebSocket connection. You can perform authentication checks before accepting.
+*   **`WebSocketDisconnect` Exception:** FastAPI raises this exception when a client disconnects. You should handle this to clean up resources.
+*   **Connection State:** You can use `websocket.client_state` (e.g., `CONNECTING`, `CONNECTED`, `DISCONNECTED`) and `websocket.application_state` to manage connection-specific states.
+
+**Example: Connection Lifecycle Management with Authentication**
+```python
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Depends, status, Query, WebSocketState
+from fastapi.security import OAuth2PasswordBearer 
+import logging
+import jwt # PyJWT for token handling
+from datetime import datetime, timedelta
+import json # For JSONDecodeError
+
+app = FastAPI() # Define app if not already defined globally in this context
+logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO)
+
+SECRET_KEY_WS_AUTH = "your-very-secret-key-for-ws"
+ALGORITHM_WS_AUTH = "HS256"
+
+class AuthConnectionManager:
+    def __init__(self):
+        self.active_connections: Dict[WebSocket, dict] = {} # Store user info
+
+    async def connect(self, websocket: WebSocket, user: dict):
+        # await websocket.accept() # Accept is now handled by the endpoint before calling this
+        self.active_connections[websocket] = user
+        logger.info(f"User {user.get('username', 'Unknown')} ({websocket.client}) connected via WebSocket.")
+
+    def disconnect(self, websocket: WebSocket):
+        user_info = self.active_connections.pop(websocket, None)
+        if user_info:
+            logger.info(f"User {user_info.get('username', 'Unknown')} ({websocket.client}) disconnected.")
+        return user_info
+
+    async def broadcast(self, message: Any, room: Optional[str] = None, exclude_websocket: Optional[WebSocket] = None, send_json: bool = False):
+        disconnected_sockets = []
+        for ws, user_info in list(self.active_connections.items()): # Iterate over a copy
+            if ws == exclude_websocket:
+                continue
+            # Add room filtering logic if user_info contains room details
+            # if room and user_info.get("room") != room:
+            #     continue
+            if ws.client_state == WebSocketState.CONNECTED:
+                try:
+                    if send_json:
+                        await ws.send_json(message)
+                    else:
+                        await ws.send_text(str(message))
+                except Exception as e:
+                    logger.error(f"Broadcast error to {ws.client}: {e}")
+                    disconnected_sockets.append(ws)
+            else: # Already disconnected or in closing state
+                disconnected_sockets.append(ws) # Mark for removal
+
+        for ws_client in disconnected_sockets:
+            self.disconnect(ws_client)
+
+
+auth_manager = AuthConnectionManager()
+
+async def get_user_from_ws_token(token: Optional[str] = Query(None)):
+    if not token:
+        return None
+    try:
+        payload = jwt.decode(token, SECRET_KEY_WS_AUTH, algorithms=[ALGORITHM_WS_AUTH])
+        username: str = payload.get("sub")
+        if username and payload.get("type") == "websocket_auth": 
+            return {"username": username, "id": payload.get("user_id")} 
+    except jwt.ExpiredSignatureError:
+        logger.warning("WebSocket auth attempt with expired token.")
+    except jwt.PyJWTError as e:
+        logger.warning(f"WebSocket auth attempt with invalid token: {e}")
+    return None
+
+@app.websocket("/ws/secure-room/{room_name}")
+async def secure_websocket_endpoint(
+    websocket: WebSocket,
+    room_name: str,
+    user: Optional[dict] = Depends(get_user_from_ws_token) 
+):
+    if user is None:
+        await websocket.accept() 
+        await websocket.close(code=status.WS_1008_POLICY_VIOLATION, reason="Invalid or missing authentication token")
+        logger.warning(f"WebSocket connection attempt denied & closed for room {room_name} (invalid/missing token).")
+        return
+
+    await websocket.accept() 
+    await auth_manager.connect(websocket, user) 
+    await auth_manager.broadcast(f"User {user['username']} joined room '{room_name}'", room=room_name) 
+
+    try:
+        while True:
+            data = await websocket.receive_json() 
+            logger.info(f"Received JSON from {user['username']} in room {room_name}: {data}")
+            message_content = data.get('message', '')
+            await auth_manager.broadcast(f"Room '{room_name}' | {user['username']}: {message_content}", room=room_name, exclude_websocket=websocket)
+            await websocket.send_json({"status": "Message sent", "your_message": message_content})
+
+    except WebSocketDisconnect:
+        logger.info(f"User {user['username']} disconnected from room {room_name}.")
+    except json.JSONDecodeError:
+        logger.warning(f"Client {user.get('username', websocket.client)} sent non-JSON message to secure room {room_name}.")
+        if websocket.client_state != WebSocketState.DISCONNECTED:
+            await websocket.close(code=status.WS_1003_UNSUPPORTED_DATA, reason="Invalid JSON format")
+    except Exception as e:
+        logger.error(f"Error in WebSocket for user {user['username']} in room {room_name}: {e}", exc_info=True)
+        if websocket.client_state != WebSocketState.DISCONNECTED:
+            await websocket.close(code=status.WS_1011_INTERNAL_ERROR)
+    finally:
+        disconnected_user = auth_manager.disconnect(websocket)
+        if disconnected_user: 
+            await auth_manager.broadcast(f"User {disconnected_user['username']} left room '{room_name}'", room=room_name)
+```
+
+### Sending and Receiving Messages
+
+FastAPI WebSockets support various methods for message exchange:
+
+*   **Text Messages:**
+    *   `await websocket.send_text(data: str)`
+    *   `data: str = await websocket.receive_text()`
+*   **JSON Messages:**
+    *   `await websocket.send_json(data: Any, mode: str = "text")` (mode can be "text" or "binary")
+    *   `data: Any = await websocket.receive_json(mode: str = "text")`
+*   **Binary Messages (Bytes):**
+    *   `await websocket.send_bytes(data: bytes)`
+    *   `data: bytes = await websocket.receive_bytes()`
+*   **Closing the Connection:**
+    *   `await websocket.close(code: int = 1000, reason: Optional[str] = None)` (Standard close codes: 1000 for normal, 1001 for going away, etc.)
+
+**Example: Handling Different Message Types**
+```python
+# ... (FastAPI app, logger, ConnectionManager 'manager' setup) ...
+
+@app.websocket("/ws/data-protocol")
+async def websocket_data_protocol_endpoint(websocket: WebSocket):
+    await manager.connect(websocket) # Assumes manager.connect calls accept()
+    await websocket.send_json({"status": "connected", "message": "Send JSON with 'type' and 'payload'."})
+    try:
+        while True:
+            received_data = await websocket.receive_json()
+            message_type = received_data.get("type")
+            payload = received_data.get("payload")
+
+            if message_type == "echo_text":
+                if isinstance(payload, str):
+                    await websocket.send_json({"type": "echo_response", "original_text": payload})
+                else:
+                    await websocket.send_json({"type": "error", "message": "echo_text requires string payload"})
+            elif message_type == "process_item":
+                item_id = payload.get("id") if isinstance(payload, dict) else None
+                if item_id is not None:
+                    logger.info(f"Processing item_id: {item_id} from {websocket.client}")
+                    await asyncio.sleep(0.1) 
+                    await websocket.send_json({"type": "item_processed", "item_id": item_id, "status": "completed"})
+                else:
+                    await websocket.send_json({"type": "error", "message": "process_item requires payload with 'id'"})
+            elif message_type == "close_connection":
+                await websocket.send_json({"type": "closing", "message": "Closing connection as requested."})
+                break 
+            else:
+                await websocket.send_json({"type": "error", "message": f"Unknown message type: {message_type}"})
+
+    except WebSocketDisconnect:
+        logger.info(f"Client {websocket.client} disconnected from data-protocol endpoint.")
+    except json.JSONDecodeError:
+        logger.warning(f"Client {websocket.client} sent non-JSON message when JSON was expected.")
+        if websocket.client_state != WebSocketState.DISCONNECTED:
+            await websocket.close(code=status.WS_1003_UNSUPPORTED_DATA, reason="Invalid JSON format")
+    except Exception as e:
+        logger.error(f"Error in data-protocol WebSocket ({websocket.client}): {e}", exc_info=True)
+        if websocket.client_state != WebSocketState.DISCONNECTED:
+            await websocket.close(code=status.WS_1011_INTERNAL_ERROR)
+    finally:
+        manager.disconnect(websocket)
+```
+
+### Broadcasting Messages
+
+Broadcasting involves sending a message to multiple (or all) connected WebSocket clients. This is essential for chat applications, live updates, etc. A `ConnectionManager` (as shown in the first example) is a common pattern.
+
+**Considerations for Broadcasting:**
+*   **Efficiency:** Iterating through many connections can be slow. For large numbers of clients, consider asynchronous task managers or message queues.
+*   **Filtering:** You might want to broadcast only to clients in a specific "room" or group.
+*   **Error Handling:** Handle potential errors when sending to individual clients (e.g., a client disconnected abruptly).
+
+**Enhanced Connection Manager for Broadcasting to Rooms:**
+```python
+from collections import defaultdict
+
+class RoomConnectionManager:
+    def __init__(self):
+        self.room_connections: Dict[str, List[WebSocket]] = defaultdict(list)
+        self.websocket_to_room: Dict[WebSocket, str] = {}
+
+    async def connect(self, websocket: WebSocket, room_name: str):
+        if websocket.client_state != WebSocketState.CONNECTED:
+             await websocket.accept()
+        self.room_connections[room_name].append(websocket)
+        self.websocket_to_room[websocket] = room_name
+        logger.info(f"WebSocket {websocket.client} connected to room '{room_name}'. Total in room: {len(self.room_connections[room_name])}")
+
+    def disconnect(self, websocket: WebSocket):
+        room_name = self.websocket_to_room.pop(websocket, None)
+        if room_name and websocket in self.room_connections.get(room_name, []):
+            self.room_connections[room_name].remove(websocket)
+            logger.info(f"WebSocket {websocket.client} disconnected from room '{room_name}'. Remaining in room: {len(self.room_connections.get(room_name, []))}")
+            if not self.room_connections[room_name]: 
+                del self.room_connections[room_name]
+                logger.info(f"Room '{room_name}' is now empty and removed.")
+        elif room_name: 
+            logger.warning(f"Websocket {websocket.client} was mapped to room '{room_name}' but not found in its connection list during disconnect.")
+
+    async def broadcast_to_room(self, message: Any, room_name: str, exclude_sender: Optional[WebSocket] = None, send_json: bool = False):
+        if room_name not in self.room_connections:
+            logger.debug(f"Attempted to broadcast to non-existent or empty room: {room_name}")
+            return
+        
+        disconnected_clients = []
+        for connection in list(self.room_connections[room_name]): 
+            if connection == exclude_sender:
+                continue
+            if connection.client_state == WebSocketState.CONNECTED:
+                try:
+                    if send_json:
+                        await connection.send_json(message)
+                    else:
+                        await connection.send_text(str(message))
+                except Exception as e:
+                    logger.error(f"Broadcast error to {connection.client} in room {room_name}: {e}")
+                    disconnected_clients.append(connection)
+            else: 
+                 disconnected_clients.append(connection)
+        
+        for ws_client in disconnected_clients:
+            self.disconnect(ws_client) 
+
+room_manager = RoomConnectionManager() 
+
+@app.websocket("/ws/chat/{room_name}/{user_name}")
+async def chat_websocket_endpoint(websocket: WebSocket, room_name: str, user_name: str):
+    await room_manager.connect(websocket, room_name)
+    join_message = {"type": "system", "user": user_name, "action": "joined", "room": room_name, "timestamp": datetime.utcnow().isoformat()}
+    await room_manager.broadcast_to_room(join_message, room_name, send_json=True)
+    
+    try:
+        while True:
+            data = await websocket.receive_json() 
+            message_text = data.get("text", "")
+            logger.info(f"Room '{room_name}', {user_name}: {message_text}")
+            
+            chat_message = {
+                "type": "chat", 
+                "user": user_name, 
+                "text": message_text, 
+                "room": room_name,
+                "timestamp": datetime.utcnow().isoformat()
+            }
+            await room_manager.broadcast_to_room(chat_message, room_name, exclude_sender=websocket, send_json=True)
+            
+    except WebSocketDisconnect:
+        logger.info(f"User {user_name} disconnected from room {room_name}.")
+    except json.JSONDecodeError:
+        logger.warning(f"User {user_name} in room {room_name} sent non-JSON message.")
+        if websocket.client_state != WebSocketState.DISCONNECTED:
+            await websocket.close(code=status.WS_1003_UNSUPPORTED_DATA, reason="Invalid JSON message format")
+    except Exception as e:
+        logger.error(f"Chat WebSocket error for {user_name} in {room_name}: {e}", exc_info=True)
+        if websocket.client_state != WebSocketState.DISCONNECTED:
+            await websocket.close(code=status.WS_1011_INTERNAL_ERROR)
+    finally:
+        room_manager.disconnect(websocket)
+        leave_message = {"type": "system", "user": user_name, "action": "left", "room": room_name, "timestamp": datetime.utcnow().isoformat()}
+        await room_manager.broadcast_to_room(leave_message, room_name, send_json=True)
+
+```
+
+### Authentication and Authorization for WebSockets
+
+Securing WebSocket endpoints is crucial. You can't use standard HTTP `Authorization` headers directly after the initial handshake. Common strategies include:
+
+1.  **Token in Query Parameter:** Pass a token as a query parameter during the initial WebSocket connection URL.
+    *   `wss://example.com/ws?token=YOUR_JWT_TOKEN`
+    *   **Caveat:** URLs can be logged. Better for server-to-server or non-browser clients if security is paramount.
+2.  **Token in Subprotocol:** Pass the token in one of the `Sec-WebSocket-Protocol` headers during the handshake. FastAPI allows you to access these.
+    *   Client: `new WebSocket("wss://example.com/ws", ["token.YOUR_JWT_TOKEN", "another.protocol"]);`
+    *   Server: `await websocket.accept(subprotocol=chosen_protocol)`
+3.  **Cookie-based Authentication:** If your HTTP API uses cookies for auth (e.g., `HttpOnly` session cookies), WebSockets initiated from the same domain can often leverage these cookies automatically if the browser sends them. FastAPI can access `websocket.cookies`.
+4.  **Initial Message Authentication:** Client connects, then sends an authentication message (e.g., a JWT) as the first WebSocket message. The server validates it before proceeding.
+
+**Example: Token in Query Parameter & Cookie-Based (Conceptual)**
+```python
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Query, Depends, status, Cookie, HTTPException, WebSocketState
+import jwt 
+from datetime import datetime, timedelta
+import logging
+import json 
+from typing import Optional, Dict, List, Any
+from collections import defaultdict 
+
+app = FastAPI() 
+logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO)
+
+# room_manager = RoomConnectionManager() # Assumed to be defined
+
+SECRET_KEY_WS = "a_different_secret_for_websocket_tokens_perhaps"
+ALGORITHM_WS = "HS256"
+
+def create_ws_auth_token(user_id: int, username: str, permissions: List[str] = None):
+    expires_delta = timedelta(hours=1) 
+    expire = datetime.utcnow() + expires_delta
+    to_encode = {"sub": username, "user_id": user_id, "exp": expire, "type": "websocket_auth"}
+    if permissions:
+        to_encode["perms"] = permissions
+    return jwt.encode(to_encode, SECRET_KEY_WS, algorithm=ALGORITHM_WS)
+
+async def get_user_from_ws_token_query(token: Optional[str] = Query(None)) -> Optional[Dict[str, Any]]:
+    if not token: return None
+    try:
+        payload = jwt.decode(token, SECRET_KEY_WS, algorithms=[ALGORITHM_WS])
+        if payload.get("type") != "websocket_auth": 
+            logger.warning(f"Query token type mismatch: {payload.get('type')}")
+            return None
+        return {"username": payload.get("sub"), "user_id": payload.get("user_id"), "source": "query_token", "perms": payload.get("perms", [])}
+    except jwt.ExpiredSignatureError: 
+        logger.warning("WS Auth: Query token expired.")
+    except jwt.PyJWTError as e:
+        logger.warning(f"WS Auth: Invalid query token: {e}")
+    return None
+
+async def get_user_from_ws_cookie(session_token: Optional[str] = Cookie(None)) -> Optional[Dict[str, Any]]:
+    if not session_token: return None
+    try:
+        payload = jwt.decode(session_token, SECRET_KEY_WS, algorithms=[ALGORITHM_WS]) 
+        if payload.get("type") != "http_session_token_for_ws": 
+            logger.warning(f"Cookie token type mismatch: {payload.get('type')}")
+            return None
+        return {"username": payload.get("sub"), "user_id": payload.get("user_id"), "source": "cookie", "perms": payload.get("perms", [])}
+    except jwt.ExpiredSignatureError:
+        logger.warning("WS Auth: Cookie token expired.")
+    except jwt.PyJWTError as e:
+        logger.warning(f"WS Auth: Invalid cookie token: {e}")
+    return None
+
+async def authenticate_websocket_user(
+    websocket: WebSocket, 
+    token_user: Optional[dict] = Depends(get_user_from_ws_token_query),
+    cookie_user: Optional[dict] = Depends(get_user_from_ws_cookie)
+) -> Optional[dict]:
+    user = token_user or cookie_user 
+    if user:
+        logger.info(f"WebSocket authenticated user {user['username']} via {user['source']}.")
+        return user
+    
+    logger.warning(f"WebSocket authentication failed for {websocket.client}.")
+    return None
+
+async def get_user_from_subprotocol(websocket: WebSocket) -> Optional[Dict[str, Any]]:
+    chosen_protocol = None
+    token_to_verify = None
+
+    if websocket.scope.get("subprotocols"):
+        for sp in websocket.scope["subprotocols"]:
+            if sp.startswith("token."):
+                token_to_verify = sp.split("token.", 1)[1]
+                chosen_protocol = sp 
+                break 
+    
+    if not token_to_verify:
+        return None
+
+    try:
+        payload = jwt.decode(token_to_verify, SECRET_KEY_WS, algorithms=[ALGORITHM_WS])
+        if payload.get("type") != "websocket_auth": return None
+        user_data = {"username": payload.get("sub"), "user_id": payload.get("user_id"), "source": "subprotocol_token", "perms": payload.get("perms", [])}
+        user_data["chosen_subprotocol"] = chosen_protocol 
+        return user_data
+    except jwt.PyJWTError:
+        return None
+
+
+@app.websocket("/ws/multi-auth/{channel_id}")
+async def multi_auth_websocket(
+    websocket: WebSocket,
+    channel_id: str,
+    user: Optional[dict] = Depends(authenticate_websocket_user) 
+):
+    chosen_subprotocol_for_accept = None
+    if not user: 
+        user_via_subprotocol = await get_user_from_subprotocol(websocket)
+        if user_via_subprotocol:
+            user = user_via_subprotocol
+            chosen_subprotocol_for_accept = user_via_subprotocol.get("chosen_subprotocol")
+            logger.info(f"WebSocket authenticated user {user['username']} via subprotocol.")
+        else: 
+            await websocket.close(code=status.WS_1008_POLICY_VIOLATION, reason="Authentication required")
+            return
+
+    try:
+        await websocket.accept(subprotocol=chosen_subprotocol_for_accept)
+    except Exception as e: 
+        logger.error(f"Failed to accept WebSocket connection for {user['username'] if user else 'unknown'}: {e}")
+        return 
+
+    room_manager.room_connections[channel_id].append(websocket)
+    room_manager.websocket_to_room[websocket] = channel_id
+    logger.info(f"User {user['username']} ({websocket.client}) effectively in room '{channel_id}'.")
+
+
+    await room_manager.broadcast_to_room(
+        {"type": "join", "user": user['username'], "channel": channel_id, "auth_source": user['source']},
+        channel_id,
+        send_json=True
+    )
+
+    try:
+        while True:
+            data = await websocket.receive_json()
+            await room_manager.broadcast_to_room(
+                {"type": "message", "user": user['username'], "content": data, "channel": channel_id},
+                channel_id,
+                exclude_sender=websocket,
+                send_json=True
+            )
+    except WebSocketDisconnect:
+        logger.info(f"User {user['username']} disconnected from channel {channel_id}.")
+    except json.JSONDecodeError:
+        logger.warning(f"User {user['username']} in channel {channel_id} sent non-JSON message.")
+        if websocket.client_state != WebSocketState.DISCONNECTED:
+            await websocket.close(code=status.WS_1003_UNSUPPORTED_DATA, reason="Invalid JSON format")
+    except Exception as e:
+        logger.error(f"Error for user {user['username']} in channel {channel_id}: {e}", exc_info=True)
+        if websocket.client_state != WebSocketState.DISCONNECTED:
+            await websocket.close(code=status.WS_1011_INTERNAL_ERROR)
+    finally:
+        room_manager.disconnect(websocket) 
+        await room_manager.broadcast_to_room(
+             {"type": "leave", "user": user['username'], "channel": channel_id},
+             channel_id,
+             send_json=True
+        )
+```
+
+### Scaling WebSockets
+
+When your application needs to handle a large number of concurrent WebSocket connections or run across multiple server instances, a simple in-memory `ConnectionManager` is insufficient.
+
+**Challenges:**
+*   **State Management:** How do you know which client is connected to which server instance?
+*   **Broadcasting:** How does one server instance send a message to a client connected to another instance?
+
+**Common Scaling Strategies:**
+1.  **Sticky Sessions (Load Balancer):**
+    *   The load balancer (e.g., Nginx, HAProxy, AWS ALB) ensures that a client always connects to the same server instance for the duration of its WebSocket session, typically based on client IP or a cookie.
+    *   **Pros:** Simpler server-side logic as each server manages its own connections locally.
+    *   **Cons:** Can lead to uneven load distribution; if a server instance goes down, all its WebSocket clients are disconnected and need to re-establish.
+2.  **Shared Connection Store & Pub/Sub (e.g., Redis):**
+    *   Each server instance registers its connected clients (and their server identifier/channel subscriptions) in a shared store like Redis.
+    *   When broadcasting, a server publishes a message to a Redis Pub/Sub channel (e.g., `room:chat_room_123`). All server instances subscribe to relevant channels. Upon receiving a message from Redis, each instance forwards it to its locally connected WebSocket clients that are part of that room/channel.
+    *   **Pros:** Better load distribution, more resilient to server failures (clients can reconnect to another instance and re-subscribe).
+    *   **Cons:** Increased complexity, reliance and potential bottleneck on Redis.
+3.  **Dedicated WebSocket Layer/Service:**
+    *   Use a specialized service (e.g., Centrifugo, Socket.IO with a Redis adapter, Ably, Pusher, or a custom-built one using something like `aiohttp-websockets` scaled independently) designed to handle WebSocket connections at scale. Your FastAPI application interacts with this layer via an API or message queue to send messages.
+    *   **Pros:** Offloads WebSocket connection management complexity, often provides advanced features (presence, history, horizontal scaling).
+    *   **Cons:** Introduces another component/dependency, potential vendor lock-in or operational overhead for self-hosted solutions.
+4.  **Message Brokers (Kafka, RabbitMQ):**
+    *   For very high-throughput scenarios or when messages need strong delivery guarantees and persistence, messages can be routed through a message broker. Each server instance (or a dedicated set of WebSocket gateway instances) consumes messages relevant to its connected clients.
+    *   **Pros:** Highly scalable, durable, good for complex event-driven architectures.
+    *   **Cons:** Significant architectural complexity, higher latency compared to direct Pub/Sub.
+
+**Conceptual Example: Using Redis Pub/Sub for Broadcasting**
+
+This is a conceptual outline. A full implementation requires a Redis client library (e.g., `redis-py` with `asyncio` support) and careful handling of subscriptions, message parsing, and error states.
+
+```python
+# Conceptual - requires redis-py (async version) and proper async handling
+import redis.asyncio as redis 
+import asyncio
+import json
+import uuid 
+# Assume: app, logger, RoomConnectionManager 'room_manager' are defined
+
+redis_publisher_conn: Optional[redis.Redis] = None
+redis_subscriber_conn: Optional[redis.Redis] = None
+pubsub_listener_task: Optional[asyncio.Task] = None
+CURRENT_INSTANCE_ID = str(uuid.uuid4()) 
+
+async def connect_redis():
+    global redis_publisher_conn, redis_subscriber_conn
+    try:
+        redis_publisher_conn = await redis.from_url("redis://localhost:6379/0", decode_responses=True)
+        redis_subscriber_conn = await redis.from_url("redis://localhost:6379/0", decode_responses=True) 
+        await redis_publisher_conn.ping()
+        await redis_subscriber_conn.ping()
+        logger.info(f"Instance {CURRENT_INSTANCE_ID} connected to Redis for Pub/Sub.")
+    except Exception as e:
+        logger.error(f"Failed to connect to Redis: {e}", exc_info=True)
+        redis_publisher_conn = None
+        redis_subscriber_conn = None
+
+
+async def disconnect_redis():
+    global pubsub_listener_task 
+    if pubsub_listener_task and not pubsub_listener_task.done():
+        pubsub_listener_task.cancel()
+        try:
+            await pubsub_listener_task
+        except asyncio.CancelledError:
+            logger.info("PubSub listener task cancelled.")
+        except Exception as e:
+            logger.error(f"Error during PubSub listener task cancellation: {e}")
+    if redis_subscriber_conn:
+        try:
+            await redis_subscriber_conn.close()
+            logger.info("Redis subscriber connection closed.")
+        except Exception as e:
+            logger.error(f"Error closing Redis subscriber connection: {e}")
+    if redis_publisher_conn:
+        try:
+            await redis_publisher_conn.close()
+            logger.info("Redis publisher connection closed.")
+        except Exception as e:
+            logger.error(f"Error closing Redis publisher connection: {e}")
+
+
+async def redis_message_handler_loop(pubsub: redis.client.PubSub):
+    try:
+        async for message in pubsub.listen():
+            if message["type"] == "pmessage": 
+                try:
+                    channel_full = message["channel"] 
+                    channel_parts = channel_full.split(":", 1)
+                    if len(channel_parts) < 2 or channel_parts[0] != "room":
+                        logger.debug(f"Ignoring Redis message on unexpected channel: {channel_full}")
+                        continue
+                    
+                    room_name = channel_parts[1]
+                    message_data_str = message["data"]
+                    data_dict = json.loads(message_data_str) 
+                    
+                    actual_message_content = data_dict.get("content") 
+                    origin_instance_id = data_dict.get("instance_id")
+
+                    logger.debug(f"Redis received for room {room_name} (from {origin_instance_id}): {actual_message_content}")
+                    await room_manager.broadcast_to_room(
+                        actual_message_content, 
+                        room_name, 
+                        send_json=True 
+                    )
+                except json.JSONDecodeError:
+                    logger.error(f"Redis Pub/Sub: Could not decode JSON from message data: {message.get('data')}")
+                except Exception as e:
+                    logger.error(f"Error processing Redis message for channel {message.get('channel')}: {e}", exc_info=True)
+    except asyncio.CancelledError:
+        logger.info("Redis message handler loop cancelled.")
+    except Exception as e:
+        logger.error(f"Critical error in Redis message handler loop: {e}", exc_info=True)
+    finally:
+        logger.info("Redis message handler loop finished.")
+
+
+async def start_pubsub_listener():
+    global pubsub_listener_task
+    if not redis_subscriber_conn:
+        logger.error("Redis subscriber not initialized for listener. Cannot start listener.")
+        return
+    
+    pubsub = redis_subscriber_conn.pubsub()
+    try:
+        await pubsub.psubscribe("room:*") 
+        pubsub_listener_task = asyncio.create_task(redis_message_handler_loop(pubsub))
+        logger.info(f"Instance {CURRENT_INSTANCE_ID} Redis PubSub listener started for pattern 'room:*'.")
+    except Exception as e:
+        logger.error(f"Failed to psubscribe or start listener task: {e}", exc_info=True)
+
+
+app.add_event_handler("startup", connect_redis)
+app.add_event_handler("startup", start_pubsub_listener) 
+app.add_event_handler("shutdown", disconnect_redis)
+
+
+async def broadcast_to_room_via_redis(message_content: Any, room_name: str):
+    if not redis_publisher_conn:
+        logger.error("Redis publisher not initialized for broadcast. Message not sent.")
+        return
+
+    payload_to_publish = {
+        "content": message_content, 
+        "instance_id": CURRENT_INSTANCE_ID 
+    }
+    try:
+        channel = f"room:{room_name}"
+        await redis_publisher_conn.publish(channel, json.dumps(payload_to_publish))
+        logger.debug(f"Instance {CURRENT_INSTANCE_ID} published to Redis channel {channel}: {message_content}")
+    except Exception as e:
+        logger.error(f"Failed to publish message to Redis for room {room_name}: {e}", exc_info=True)
+
+# Example modification to the chat endpoint:
+# @app.websocket("/ws/chat-redis/{room_name}/{user_name}")
+# async def chat_redis_websocket_endpoint(websocket: WebSocket, room_name: str, user_name: str):
+#     # ... (authentication and local room_manager.connect logic) ...
+#     await room_manager.connect(websocket, room_name) 
+#     join_msg_content = {"type": "system", "user": user_name, "action": "joined", "room": room_name, "timestamp": datetime.utcnow().isoformat()}
+#     await broadcast_to_room_via_redis(join_msg_content, room_name)
+#     try:
+#         while True:
+#             data = await websocket.receive_json()
+#             chat_msg_content = {"type": "chat", "user": user_name, "text": data.get("text",""), "room": room_name, "timestamp": datetime.utcnow().isoformat()}
+#             await broadcast_to_room_via_redis(chat_msg_content, room_name) 
+#     except WebSocketDisconnect:
+#         logger.info(f"User {user_name} (Redis chat) disconnected from room {room_name}.")
+#     finally:
+#         room_manager.disconnect(websocket)
+#         leave_msg_content = {"type": "system", "user": user_name, "action": "left", "room": room_name, "timestamp": datetime.utcnow().isoformat()}
+#         await broadcast_to_room_via_redis(leave_msg_content, room_name)
+```
+This Redis Pub/Sub example illustrates how instances can communicate. Each server instance maintains its local WebSocket connections. When a message needs to be broadcast (e.g., a chat message from a user connected to instance A), instance A publishes it to a Redis channel (e.g., `room:my_chat_room`). All instances (A, B, C, etc.) are subscribed to this channel. When they receive the message from Redis, they then iterate through their *local* WebSocket connections for `my_chat_room` and send the message.
+
+---

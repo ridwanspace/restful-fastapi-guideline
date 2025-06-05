@@ -1,0 +1,352 @@
+## 16. Implementing Webhooks
+
+Webhooks are automated messages sent from apps when something happens. They have a message—or payload—which is sent to a unique URL: a webhook URL. This allows different applications to communicate event-driven information in real-time or near real-time.
+
+### Understanding Webhooks vs. Polling
+
+*   **Polling:** The client repeatedly asks the server if there's new data.
+    *   **Pros:** Simple to implement on the client.
+    *   **Cons:** Inefficient (many useless requests), latency (delay in getting updates), can overload the server.
+*   **Webhooks (Push):** The server notifies the client (by sending an HTTP request to a pre-registered client URL) when new data or an event occurs.
+    *   **Pros:** Efficient (data sent only when available), low latency, reduces server load.
+    *   **Cons:** Client needs a publicly accessible endpoint, more complex initial setup, requires handling security.
+
+**When to use Webhooks:**
+*   Notifications for events (e.g., payment completed, new user signed up, CI build finished).
+*   Data synchronization between services.
+*   Integrating with third-party services that support webhooks (e.g., GitHub, Stripe, Slack).
+
+### Receiving Webhooks in FastAPI
+
+Your FastAPI application will act as the HTTP server listening for incoming webhook requests from an external service.
+
+**Key Considerations:**
+1.  **Dedicated Endpoint:** Create a specific endpoint (e.g., `/webhooks/service-name`) for each webhook provider.
+2.  **HTTP Method:** Most webhooks use `POST` requests with a JSON payload.
+3.  **Immediate Response:** Respond quickly to the webhook provider (e.g., `200 OK` or `202 Accepted`) to acknowledge receipt. Long processing should be done asynchronously.
+4.  **Payload Validation:** Validate the structure and data types of the incoming payload using Pydantic models.
+5.  **Security:** Verify the authenticity of the webhook.
+6.  **Asynchronous Processing:** Offload the actual processing of the webhook data to background tasks.
+7.  **Idempotency:** Webhook providers may send the same event multiple times (e.g., due to network issues or retries). Design your handler to be idempotent if the action taken is not naturally so.
+
+**Example: Receiving a GitHub Webhook**
+
+```python
+from fastapi import FastAPI, Request, HTTPException, Header, BackgroundTasks, status
+from pydantic import BaseModel, Field, ValidationError
+import hashlib
+import hmac
+import json
+import logging
+import uvicorn 
+from typing import Dict, Any, List, Optional 
+import os 
+import uuid 
+
+app = FastAPI() 
+logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO)
+
+GITHUB_WEBHOOK_SECRET = os.environ.get("GITHUB_WEBHOOK_SECRET", "your_github_webhook_secret_fallback") 
+
+class GitHubRepository(BaseModel):
+    id: int
+    name: str
+    full_name: str
+    html_url: str
+
+class GitHubPusher(BaseModel):
+    name: str
+    email: Optional[str] = None
+
+class GitHubCommit(BaseModel):
+    id: str
+    message: str
+    timestamp: str 
+    url: str
+    author: Dict[str, str] 
+
+class GitHubPushEventPayload(BaseModel):
+    ref: str
+    before: str
+    after: str
+    repository: GitHubRepository
+    pusher: GitHubPusher
+    commits: List[GitHubCommit]
+    head_commit: Optional[GitHubCommit] = None 
+
+async def verify_github_signature(request: Request, secret: str) -> bool:
+    signature_header = request.headers.get("X-Hub-Signature-256")
+    if not signature_header:
+        logger.warning("Missing X-Hub-Signature-256 header from GitHub webhook.")
+        return False
+
+    sha_name, signature_hex = signature_header.split("=", 1)
+    if sha_name != "sha256":
+        logger.warning(f"Unsupported signature algorithm: {sha_name}")
+        return False
+
+    request_body_bytes = await request.body() 
+    request.state.raw_body = request_body_bytes
+
+    mac = hmac.new(secret.encode('utf-8'), msg=request_body_bytes, digestmod=hashlib.sha256)
+    expected_signature = mac.hexdigest()
+
+    if not hmac.compare_digest(expected_signature, signature_hex):
+        logger.warning(f"GitHub webhook signature mismatch. Expected: {expected_signature}, Got: {signature_hex}")
+        return False
+    
+    logger.info("GitHub webhook signature verified successfully.")
+    return True
+
+async def process_github_push_event(event_id: str, payload: GitHubPushEventPayload):
+    logger.info(f"Event ID {event_id}: Processing GitHub push event for repo: {payload.repository.full_name}, ref: {payload.ref}")
+    for commit in payload.commits:
+        logger.info(f"Event ID {event_id}: Commit {commit.id[:7]} by {commit.author.get('name')}: {commit.message.splitlines()[0]}")
+    
+    await asyncio.sleep(5) 
+    logger.info(f"Event ID {event_id}: Finished processing push event for {payload.repository.full_name}.")
+
+
+@app.post("/webhooks/github")
+async def github_webhook_receiver(
+    request: Request,
+    background_tasks: BackgroundTasks,
+    x_github_event: Optional[str] = Header(None), 
+    x_github_delivery: Optional[str] = Header(None), 
+    x_hub_signature_256: Optional[str] = Header(None) 
+):
+    event_id = x_github_delivery or str(uuid.uuid4()) 
+    logger.info(f"Event ID {event_id}: Received GitHub webhook. Event Type: {x_github_event}, Signature Present: {x_hub_signature_256 is not None}")
+
+    if not await verify_github_signature(request, GITHUB_WEBHOOK_SECRET):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Invalid signature")
+
+    raw_body = getattr(request.state, "raw_body", None)
+    if not raw_body:
+        logger.error(f"Event ID {event_id}: Raw body not found in request state after signature verification.")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Internal error processing request body.")
+    
+    try:
+        payload_dict = json.loads(raw_body.decode('utf-8'))
+    except json.JSONDecodeError:
+        logger.error(f"Event ID {event_id}: GitHub webhook - Invalid JSON payload.")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid JSON payload")
+
+    if x_github_event == "push":
+        try:
+            push_payload = GitHubPushEventPayload(**payload_dict)
+        except ValidationError as e: 
+            logger.error(f"Event ID {event_id}: GitHub webhook 'push' event validation error: {e.errors()}")
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail={"message": "Invalid push event payload", "errors": e.errors()})
+        
+        background_tasks.add_task(process_github_push_event, event_id, push_payload)
+        logger.info(f"Event ID {event_id}: GitHub 'push' event for {push_payload.repository.full_name} queued for processing.")
+        return {"status": "success", "message": "Webhook received and queued.", "event_id": event_id}
+    
+    elif x_github_event == "ping":
+        logger.info(f"Event ID {event_id}: Received GitHub 'ping' event. Zen: {payload_dict.get('zen')}")
+        return {"status": "success", "message": "Pong! Ping event received.", "event_id": event_id}
+        
+    else:
+        logger.info(f"Event ID {event_id}: Received unhandled GitHub event type: {x_github_event}")
+        return {"status": "success", "message": f"Webhook event '{x_github_event}' received but not processed.", "event_id": event_id}
+
+```
+
+### Sending Webhooks from FastAPI
+
+Your application might also need to send webhooks to other services when certain events occur within your system.
+
+**Key Considerations:**
+1.  **Event Trigger:** Determine what internal events should trigger a webhook.
+2.  **Subscriber Management:** Store webhook URLs subscribed by clients/services. This usually involves a database table for `(event_type, target_url, secret_for_signing, is_active)`.
+3.  **Payload Design:** Create a clear and consistent JSON payload for your webhooks. Include event type, timestamp, a unique event ID, and relevant data.
+4.  **Asynchronous Sending:** Send webhooks asynchronously (e.g., using `BackgroundTasks` or a task queue like Celery/RQ) to avoid blocking your main application logic.
+5.  **Retry Mechanisms:** Implement retries with exponential backoff for failed deliveries. External services might be temporarily unavailable. Log failed attempts and final failures.
+6.  **Signing Outgoing Webhooks:** Sign your webhook payloads (e.g., using HMAC-SHA256 with the subscriber's secret) so the recipient can verify their authenticity.
+7.  **Logging and Monitoring:** Log all outgoing webhook attempts, successes, and failures. Monitor delivery rates and error patterns.
+8.  **Dead Letter Queues (DLQ):** For webhooks that consistently fail after multiple retries, consider sending them to a DLQ for manual inspection or later processing.
+
+**Example: Sending a Webhook for a "New Order" Event**
+
+```python
+from fastapi import FastAPI, BackgroundTasks, Depends, status as http_status 
+from pydantic import BaseModel, Field
+import httpx 
+import hmac
+import hashlib
+import json
+import time 
+from typing import List, Dict, Any, Optional
+import logging
+import asyncio
+import uuid 
+from datetime import datetime 
+
+app = FastAPI() 
+logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO)
+
+webhook_subscriptions: Dict[str, List[Dict[str, str]]] = {
+    "order.created": [
+        {"id": "sub_1", "url": "https://client-service-a.com/webhooks/orders", "secret": "client_a_super_secret", "is_active": True},
+        {"id": "sub_2", "url": "http://localhost:8001/test-webhook-receiver", "secret": "local_test_secret", "is_active": True}, 
+        {"id": "sub_3", "url": "https://client-service-b.com/api/new-order-hook", "secret": "client_b_very_secure_key", "is_active": False}, 
+    ],
+    "user.updated": [
+        {"id": "sub_4", "url": "https://audit-log-service.com/user-events", "secret": "audit_secret_key", "is_active": True},
+    ]
+}
+
+class OrderItem(BaseModel):
+    product_id: str
+    quantity: int
+    unit_price: float
+
+class OrderDataForWebhook(BaseModel):
+    order_id: str
+    customer_id: int
+    total_amount: float
+    currency: str = "USD"
+    items: List[OrderItem]
+    status: str = "pending"
+    created_at: str = Field(default_factory=lambda: datetime.utcnow().isoformat() + "Z")
+
+
+async def send_webhook_attempt_with_retries(
+    target_url: str, 
+    payload_dict: Dict[str, Any], 
+    secret: str, 
+    event_id: str,
+    subscription_id: str,
+    max_retries: int = 3, 
+    initial_delay_seconds: int = 2
+):
+    payload_bytes = json.dumps(payload_dict, sort_keys=True, separators=(',', ':')).encode('utf-8') 
+    signature = hmac.new(secret.encode('utf-8'), payload_bytes, hashlib.sha256).hexdigest()
+    
+    headers = {
+        "Content-Type": "application/json; charset=utf-8",
+        "X-MyAPI-Signature-256": f"sha256={signature}", 
+        "X-MyAPI-Event-ID": event_id,
+        "User-Agent": "MyFastAPI-WebhookDispatcher/1.0"
+    }
+
+    for attempt in range(1, max_retries + 1):
+        headers["X-MyAPI-Webhook-Attempt"] = str(attempt)
+        logger.info(f"Event {event_id} (Sub {subscription_id}): Attempt {attempt}/{max_retries} to send webhook to {target_url}")
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client: 
+                response = await client.post(target_url, content=payload_bytes, headers=headers)
+            
+            if 200 <= response.status_code < 300:
+                logger.info(f"Event {event_id} (Sub {subscription_id}): Webhook successfully sent to {target_url}. Status: {response.status_code}")
+                return True 
+            else:
+                logger.warning(f"Event {event_id} (Sub {subscription_id}): Webhook delivery to {target_url} failed. Status: {response.status_code}, Response: {response.text[:200]}")
+                if 400 <= response.status_code < 500 and response.status_code not in [408, 429]: 
+                    logger.error(f"Event {event_id} (Sub {subscription_id}): Client error {response.status_code} from {target_url}. Not retrying further for this error.")
+                    return False 
+        
+        except httpx.TimeoutException:
+            logger.warning(f"Event {event_id} (Sub {subscription_id}): Webhook request to {target_url} timed out (Attempt {attempt}).")
+        except httpx.RequestError as e:
+            logger.error(f"Event {event_id} (Sub {subscription_id}): Webhook request error for {target_url} (Attempt {attempt}): {e}")
+        except Exception as e: 
+            logger.error(f"Event {event_id} (Sub {subscription_id}): Unexpected error sending webhook to {target_url} (Attempt {attempt}): {e}", exc_info=True)
+
+        if attempt < max_retries:
+            delay = initial_delay_seconds * (2 ** (attempt - 1)) 
+            logger.info(f"Event {event_id} (Sub {subscription_id}): Retrying webhook to {target_url} in {delay} seconds.")
+            await asyncio.sleep(delay)
+        else:
+            logger.error(f"Event {event_id} (Sub {subscription_id}): Failed to deliver webhook to {target_url} after {max_retries} attempts.")
+            return False
+    return False 
+
+async def dispatch_event_to_subscribers(event_type: str, event_data_model: BaseModel):
+    subscribers = webhook_subscriptions.get(event_type, [])
+    if not subscribers:
+        logger.debug(f"No subscribers for event type: {event_type}")
+        return
+
+    event_id = str(uuid.uuid4())
+    event_payload_dict = {
+        "event_type": event_type,
+        "timestamp": datetime.utcnow().isoformat() + "Z",
+        "data": event_data_model.dict(), 
+        "event_id": event_id 
+    }
+    
+    active_subscribers = [sub for sub in subscribers if sub.get("is_active")]
+    logger.info(f"Event {event_id} ({event_type}): Dispatching to {len(active_subscribers)} active subscribers.")
+
+    tasks = [
+        send_webhook_attempt_with_retries(
+            target_url=sub["url"], 
+            payload_dict=event_payload_dict, 
+            secret=sub["secret"],
+            event_id=event_id,
+            subscription_id=sub["id"]
+        )
+        for sub in active_subscribers
+    ]
+    results = await asyncio.gather(*tasks, return_exceptions=True) 
+
+    for i, result in enumerate(results):
+        sub_url = active_subscribers[i]["url"]
+        if isinstance(result, Exception):
+            logger.error(f"Event {event_id}: Exception during webhook dispatch to {sub_url}: {result}")
+        elif not result: 
+             logger.error(f"Event {event_id}: Final delivery failure to {sub_url}.")
+
+
+@app.post("/orders", status_code=http_status.HTTP_201_CREATED)
+async def create_new_order_and_send_webhook(
+    order_input: OrderDataForWebhook, 
+    background_tasks: BackgroundTasks
+):
+    logger.info(f"Order {order_input.order_id} created for customer {order_input.customer_id}.")
+    background_tasks.add_task(dispatch_event_to_subscribers, "order.created", order_input)
+    return {"message": "Order created successfully and webhook dispatch initiated.", "order_id": order_input.order_id}
+
+@app.post("/test-trigger-webhook/{event_type}")
+async def trigger_test_webhook(event_type: str, background_tasks: BackgroundTasks):
+    test_data = {"message": f"This is a test event for {event_type}", "value": 123}
+    class TestEventData(BaseModel): message: str; value: int
+    test_data_model = TestEventData(**test_data)
+    background_tasks.add_task(dispatch_event_to_subscribers, event_type, test_data_model)
+    return {"message": f"Test webhook for event '{event_type}' triggered."}
+
+# Dummy endpoint to receive test webhooks
+# @app.post("/test-webhook-receiver")
+# async def test_webhook_receiver(request: Request, x_myapi_signature_256: Optional[str] = Header(None)):
+#     payload_bytes = await request.body()
+#     logger.info(f"Test receiver got signature: {x_myapi_signature_256}")
+#     logger.info(f"Test receiver got payload: {payload_bytes.decode()}")
+#     return {"status": "received by test endpoint"}
+# if __name__ == "__main__":
+#    uvicorn.run(app, host="0.0.0.0", port=8000) 
+#    # To run the test receiver: uvicorn test_receiver_app:app --port 8001
+```
+
+**Webhook Management (Conceptual):**
+*   **Subscription Storage:**
+    *   Database table: `webhook_subscriptions`
+        *   `id` (PK, e.g., UUID)
+        *   `user_id` / `client_id` (FK, who owns this subscription)
+        *   `event_type` (e.g., "order.created", "user.updated", or "*" for all)
+        *   `target_url` (HTTPS is highly recommended)
+        *   `secret` (randomly generated, strong secret for signing, stored encrypted at rest)
+        *   `is_active` (boolean, to easily enable/disable)
+        *   `created_at`, `updated_at`
+*   **Subscription API Endpoints:**
+    *   `POST /api/v1/webhook-subscriptions`: Create a new subscription. Request body includes `event_type`, `target_url`. Server generates and returns the `secret`.
+    *   `GET /api/v1/webhook-subscriptions`: List user's subscriptions.
+    *   `GET /api/v1/webhook-subscriptions/{subscription_id}`: Get details of a specific subscription.
+    *   `PUT /api/v1/webhook-subscriptions/{subscription_id}`: Update `target_url` or `is_active`. (Regenerating secret might be an option).
+    *   `DELETE /api/v1/webhook-subscriptions/{subscription_id}`: Delete a subscription.
+*   **Security:** All subscription management endpoints MUST be authenticated and authorized.
+
+---

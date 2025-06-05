@@ -107,7 +107,7 @@ export default function LandingPage() {
           <div className="container mx-auto px-4 md:px-6">
             <div className="text-center mb-12">
               <h2 className="text-3xl font-bold tracking-tight sm:text-4xl text-sky-400">Simple, Transparent Pricing</h2>
-              <p className="mt-4 text-lg text-slate-300">Choose the plan that's right for you. No hidden fees, ever.</p>
+              <p className="mt-4 text-lg text-slate-300">Choose the plan that&apos;s right for you. No hidden fees, ever.</p>
             </div>
             <div className="grid grid-cols-1 gap-8 md:grid-cols-3 max-w-4xl mx-auto">
               {[
