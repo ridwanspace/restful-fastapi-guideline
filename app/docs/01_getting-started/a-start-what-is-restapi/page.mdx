@@ -226,7 +226,7 @@ Payment processing is like having a specialized cashier who securely handles you
 ```mermaid
 stateDiagram-v2
     [*] --> ShoppingCart: Add items
-    ShoppingCart --> Checkout: Proceed to pay
+    ShoppingCart --> Checkout: Proceed to pay<br>
     
     state Checkout {
         [*] --> EnterDetails: Payment info
