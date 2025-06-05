@@ -789,13 +789,13 @@ Think of **GET endpoints** like your restaurant's **information systems**:
 graph TD
     A[Customer Request<br/>🧑‍💼 GET Request] --> B{What Type?}
     
-    B -->|All Tasks| C[Menu Board<br/>📋 GET /tasks]
-    B -->|Specific Task| D[Dish Details<br/>🔍 GET /tasks/{id}]
+    B -->|All Tasks| C["Menu Board<br/>📋 GET /tasks"]
+    B -->|Specific Task| D["Dish Details<br/>🔍 GET /tasks/{id}"]
     
     C --> E[Kitchen Check<br/>🏪 Search tasks_db]
     D --> F[Find Specific Item<br/>🎯 Search by ID]
     
-    E --> G[Display Full Menu<br/>📋 List[Task]]
+    E --> G["Display Full Menu<br/>📋 List[Task]"]
     F --> H{Item Found?}
     
     H -->|Yes| I[Show Dish Details<br/>🍽️ Task Object]
