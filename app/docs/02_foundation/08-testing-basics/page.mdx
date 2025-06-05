@@ -67,14 +67,17 @@ Well-tested code gives teams the confidence to deploy frequently - like a chef w
 FastAPI applications can be investigated at multiple levels, each providing different insights:
 
 ```mermaid
-pyramid
-    title Testing Pyramid: Detective Investigation Levels
+graph TD
+    %% Testing Pyramid: Detective Investigation Levels
     
-    top[🔬 Unit Tests (70%)<br/>Individual Evidence Analysis<br/>Fast • Isolated • Specific]
+    N_Top["🔬 Unit Tests (70%)<br/>Individual Evidence Analysis<br/>Fast • Isolated • Specific"]
     
-    middle[🔗 Integration Tests (20%)<br/>Connecting Evidence Pieces<br/>Medium Speed • Component Groups]
+    N_Middle["🔗 Integration Tests (20%)<br/>Connecting Evidence Pieces<br/>Medium Speed • Component Groups"]
     
-    bottom[🌐 API Tests (10%)<br/>Complete Case Investigation<br/>Slower • Full System • User Experience]
+    N_Bottom["🌐 API Tests (10%)<br/>Complete Case Investigation<br/>Slower • Full System • User Experience"]
+
+    N_Top --> N_Middle
+    N_Middle --> N_Bottom
 ```
 
 1. **🔬 Unit Tests**: Examine individual functions and classes under the microscope
