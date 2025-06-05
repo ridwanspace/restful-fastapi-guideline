@@ -26,8 +26,11 @@ Let's start with something familiar - a restaurant experience. This analogy will
 
 ```mermaid
 graph TD
-    subgraph "Restaurant Dining Experience"
-        A[🧑 Customer<br/>You arrive hungry] --> B[📋 Menu<br/>Browse options]
+    subgraph "<br>Restaurant Dining Experience"
+        %% Invisible node for spacing
+        invisible_node[ ]
+        invisible_node ~~~ A[🧑 Customer<br/>You arrive hungry]
+        A --> B[📋 Menu<br/>Browse options]
         B --> C[🤵 Waiter<br/>Takes your order]
         C --> D[👨‍🍳 Kitchen<br/>Prepares food]
         D --> E[🍽️ Plated Dish<br/>Food is ready]
@@ -35,6 +38,7 @@ graph TD
         C --> F[😋 Happy Customer<br/>Enjoys meal]
     end
     
+    style invisible_node fill:none,stroke:none
     style C fill:#e1f5fe,stroke:#0277bd,stroke-width:3px
     style A fill:#f3e5f5
     style F fill:#c8e6c9
