@@ -2,6 +2,24 @@
 
 *Transform your API from a simple catalog to an intelligent discovery engine that adapts to every user*
 
+## 🚀 Quick Start: What You'll Build
+
+**In 30 minutes, you'll create:**
+- 🎯 **Smart pizza API** that recommends differently for families vs food critics
+- ⚡ **Performance-optimized sorting** handling thousands of items instantly
+- 🧠 **Context-aware defaults** that adapt to user type and time of day
+- 📊 **Multi-factor ranking** combining price, quality, and speed intelligently
+
+**Prerequisites:** Basic FastAPI knowledge • 15 min reading time • Copy-paste friendly code
+
+**👀 See it in action:**
+```bash
+# Different users get different automatic sorting!
+curl "localhost:8000/pizzas/smart?user=business_lunch"  # Speed-focused
+curl "localhost:8000/pizzas/smart?user=family_dinner"   # Value-focused  
+curl "localhost:8000/pizzas/smart?user=food_critic"     # Quality-focused
+```
+
 ## 🎯 The Big Picture: Why Smart Sorting Matters
 
 ### 🧠 The Problem We're Solving
@@ -64,6 +82,45 @@ graph TD
 
 💡 **The Key Insight**: Just like a great restaurant adapts its menu presentation to different customers, your API should present data differently based on who's asking and what they need.
 
+## 🎓 Learning Path Architecture
+
+**How this guide works:**
+```mermaid
+graph LR
+    A[🌱 Level 1<br/>Foundation<br/>Single Field] --> B[🔧 Level 2<br/>Intermediate<br/>Multi-Field]
+    B --> C[🚀 Level 3<br/>Advanced<br/>Context-Aware]
+    C --> D[⚡ Level 4<br/>Expert<br/>Performance]
+    
+    A1[📚 Learn: Basic sorting] --> A
+    B1[📚 Learn: Weighted scoring] --> B  
+    C1[📚 Learn: User personalization] --> C
+    D1[📚 Learn: Scale optimization] --> D
+    
+    A --> A2[🔧 Build: Simple endpoint]
+    B --> B2[🔧 Build: Multi-factor ranking]
+    C --> C2[🔧 Build: Smart defaults]
+    D --> D2[🔧 Build: Enterprise performance]
+    
+    style A fill:#e8f5e8
+    style B fill:#e3f2fd
+    style C fill:#f3e5f5
+    style D fill:#fff3e0
+```
+
+**💡 Progressive Enhancement Strategy:**
+- **Each level builds on the previous** - no concept is introduced without foundation
+- **Real working code at every step** - copy-paste and run immediately
+- **Analogies connect to previous knowledge** - pizza restaurant metaphors throughout
+- **Visual diagrams support different learning styles** - see the concepts in action
+
+### 🎯 Success Checkpoints
+
+After each level, you'll be able to:
+- ✅ **Level 1**: Create basic API endpoints with reliable single-field sorting
+- ✅ **Level 2**: Handle complex user requirements with multi-factor decision making
+- ✅ **Level 3**: Build personalized experiences that adapt to user context
+- ✅ **Level 4**: Scale to enterprise requirements with performance optimization
+
 ---
 
 ## 🌱 Level 1: Foundation - Your First Smart Sort
@@ -78,9 +135,20 @@ from enum import Enum
 from typing import List, Dict, Any
 
 # 🧭 Like choosing "A to Z" or "Z to A" when organizing books
+# This enum makes our API self-documenting and prevents typos
 class SortDirection(str, Enum):
-    asc = "asc"   # 📈 Low to high (cheapest first, oldest first)
-    desc = "desc" # 📉 High to low (expensive first, newest first)
+    """📊 Sort direction options - like choosing how to arrange books on a shelf"""
+    asc = "asc"   # 📈 Low to high (cheapest first, oldest first, A to Z)
+    desc = "desc" # 📉 High to low (expensive first, newest first, Z to A)
+    
+    def __str__(self) -> str:
+        """Make the enum readable in logs and error messages"""
+        return self.value
+    
+    @property
+    def human_readable(self) -> str:
+        """Get user-friendly description for API documentation"""
+        return "lowest to highest" if self == self.asc else "highest to lowest"
 
 app = FastAPI()
 
@@ -153,9 +221,79 @@ curl "localhost:8000/pizzas/simple-sort?sort_by=prep_time&direction=asc"
 - 🔍 **Field validation**: Make sure the sorting field exists in your data
 - 📝 **Clear responses**: Return not just data, but explanation of what happened
 
+### 🐛 Troubleshooting Level 1: Common Issues
+
+**❌ Problem**: `"Can't sort by 'ratings' - field doesn't exist"`
+```bash
+# Wrong field name (notice the 's' at the end)
+curl "localhost:8000/pizzas/simple-sort?sort_by=ratings"
+```
+**✅ Solution**: Check available fields in your data
+```bash
+# Correct field name
+curl "localhost:8000/pizzas/simple-sort?sort_by=rating"
+```
+
+**❌ Problem**: `TypeError: '<' not supported between instances`
+**Root cause**: Mixing different data types in the same field
+**✅ Solution**: Ensure consistent data types:
+```python
+# ❌ Bad: mixing strings and numbers
+{"price": "12.99"}, {"price": 15.99}  # String vs number
+
+# ✅ Good: consistent types  
+{"price": 12.99}, {"price": 15.99}    # Both numbers
+```
+
+**💡 Debug Mode**: Add this to your endpoint for development:
+```python
+@app.get("/pizzas/simple-sort")
+async def get_pizzas_simple_sort(
+    sort_by: str = Query("price"),
+    direction: SortDirection = Query(SortDirection.asc),
+    debug: bool = Query(False, description="Show debug information")
+):
+    # ... existing code ...
+    
+    result = {
+        "data": sorted_pizzas,
+        "sorting": {
+            "field": sort_by,
+            "direction": direction.value,
+            "explanation": f"Pizzas sorted by {sort_by} from {direction.human_readable}"
+        }
+    }
+    
+    # Add debug info in development
+    if debug:
+        result["debug"] = {
+            "total_items": len(sample_pizzas),
+            "available_fields": list(sample_pizzas[0].keys()) if sample_pizzas else [],
+            "data_types": {field: type(sample_pizzas[0][field]).__name__ 
+                          for field in sample_pizzas[0].keys()} if sample_pizzas else {}
+        }
+    
+    return result
+```
+
+### 🎯 Level 1 Self-Check
+
+**Before moving to Level 2, verify you can:**
+- [ ] Sort by any field (price, rating, prep_time) in both directions
+- [ ] Handle errors gracefully when invalid fields are requested
+- [ ] Understand why `reverse=True` means descending order
+- [ ] Explain the pizza restaurant analogy to a colleague
+
+**🔧 Mini Challenge**: Add a new field `"calories"` to each pizza and sort by it.
+
 ### 🚀 Next Level Preview
 
 Single-field sorting is great, but what if customers want "good pizza that's also affordable"? That requires **multi-field sorting**, which we'll build next!
+
+**Coming up in Level 2:**
+- 🏆 **Weighted scoring**: "Quality matters 2x more than price"
+- 📊 **Multi-factor decisions**: Combine rating, price, and speed
+- 🧮 **Smart normalization**: Compare apples to apples across different scales
 
 ---
 
@@ -447,6 +585,76 @@ curl "localhost:8000/pizzas/multi-field-sort?primary_field=calories&primary_dire
 - Keep weights between 0.5-3.0 for balanced results
 - Always provide explanations in your API responses
 - Test with real user scenarios to validate the ranking feels right
+
+### 🔬 Advanced Multi-Field Techniques
+
+**🎯 Null Value Handling**: What happens when data is missing?
+```python
+# Enhanced null handling in your sorting function
+def safe_get_field_value(item: Dict, field: str, field_type: str) -> float:
+    """Get field value with intelligent defaults for missing data"""
+    value = item.get(field)
+    
+    if value is None:
+        # For restaurant analogy: Missing info gets neutral score
+        if field_type == "rating":
+            return 3.0  # Neutral rating (middle of 1-5 scale)
+        elif field_type == "price":
+            return float('inf')  # Missing price = very expensive (sort to bottom)
+        elif field_type == "prep_time":
+            return 999  # Missing time = very slow (sort to bottom)
+        else:
+            return 0.0  # Generic neutral value
+    
+    return float(value)
+```
+
+**📊 Dynamic Weight Adjustment**: Adapt weights based on data distribution
+```python
+def calculate_smart_weights(data: List[Dict], primary_field: str) -> Dict[str, float]:
+    """Automatically adjust weights based on data variance"""
+    # If all items have similar values in primary field, reduce its weight
+    # This prevents meaningless sorting when everything is basically the same
+    values = [item.get(primary_field, 0) for item in data]
+    variance = statistics.variance(values) if len(set(values)) > 1 else 0
+    
+    if variance < 0.1:  # Very similar values
+        return {"primary": 1.0, "secondary": 2.0}  # Boost secondary factor
+    else:
+        return {"primary": 2.0, "secondary": 1.0}  # Normal weighting
+```
+
+### 🐛 Troubleshooting Level 2: Multi-Field Issues
+
+**❌ Problem**: Results don't match expectations
+```bash
+# Expected: Cheap + good ratings, but getting expensive items
+curl "localhost:8000/pizzas/multi-field-sort?primary_field=rating&secondary_field=price"
+```
+**🔍 Debug approach:**
+1. Check the `_field_scores` in the response to see individual calculations
+2. Verify field directions: `rating=desc` (high=good), `price=asc` (low=good)
+3. Examine weight values: Are they balanced appropriately?
+
+**❌ Problem**: One field completely dominates results
+**Root cause**: Weight imbalance or scale differences
+**✅ Solution**: 
+```python
+# Instead of weight=10.0 for rating, weight=1.0 for price
+# Try more balanced weights:
+primary_weight=2.0    # Rating is 2x more important
+secondary_weight=1.0  # Price is baseline importance
+```
+
+**💡 Quick validation**: Add this test to your endpoint:
+```python
+# Test data balance
+rating_range = max(p["rating"] for p in pizzas) - min(p["rating"] for p in pizzas)
+price_range = max(p["price"] for p in pizzas) - min(p["price"] for p in pizzas)
+
+if rating_range < 0.5:  # Very similar ratings
+    logger.warning("Ratings are very similar - consider boosting other factors")
+```
 
 ### 🚀 Level 3 Preview: Context-Aware Personalization
 
@@ -945,5 +1153,474 @@ You've transformed your API from a **simple cafeteria** (basic lists) into a **m
 - 🔧 **Takes special requests** (manual overrides when needed)
 
 Your users now get **exactly what they need**, **when they need it**, **in the way that makes most sense for them**.
+
+**Congratulations! You've mastered intelligent API sorting!** 🎉
+
+---
+
+## 🎯 Complete Implementation: Production-Ready Code
+
+### 🏗️ Putting It All Together: Complete FastAPI App
+
+Here's a complete, production-ready implementation combining all levels:
+
+```python
+# main.py - Complete Smart Sorting API
+from fastapi import FastAPI, Query, HTTPException, Depends
+from pydantic import BaseModel, Field
+from typing import List, Optional, Dict, Any, Union
+from enum import Enum
+import time
+import logging
+from functools import lru_cache
+
+# Configure logging for production debugging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+# 🎯 All our enhanced models and classes from the tutorial
+class SortDirection(str, Enum):
+    """📊 Sort direction with human-readable descriptions"""
+    asc = "asc"
+    desc = "desc"
+    
+    @property
+    def human_readable(self) -> str:
+        return "lowest to highest" if self == self.asc else "highest to lowest"
+
+class UserRole(str, Enum):
+    """👤 User types with different sorting preferences"""
+    customer = "customer"
+    business_user = "business_user"
+    food_critic = "food_critic"
+    family = "family"
+    health_conscious = "health_conscious"
+
+# 🍕 Enhanced pizza data model
+class Pizza(BaseModel):
+    """🍕 Complete pizza model with all sorting fields"""
+    id: int
+    name: str
+    price: float = Field(..., gt=0, description="Price in USD")
+    rating: float = Field(..., ge=1, le=5, description="Customer rating 1-5")
+    prep_time: int = Field(..., gt=0, description="Preparation time in minutes")
+    calories: int = Field(..., gt=0, description="Calories per serving")
+    tags: List[str] = Field(default_factory=list, description="dietary tags")
+
+# Create FastAPI app with comprehensive configuration
+app = FastAPI(
+    title="🍕 Smart Pizza Sorting API",
+    description="Intelligent sorting that adapts to different user types and contexts",
+    version="2.0.0",
+    docs_url="/docs",
+    redoc_url="/redoc"
+)
+
+# 📊 Production pizza data
+PIZZA_DATA: List[Pizza] = [
+    Pizza(id=1, name="Margherita", price=12.99, rating=4.5, prep_time=10, calories=250, tags=["vegetarian"]),
+    Pizza(id=2, name="Pepperoni", price=15.99, rating=4.8, prep_time=12, calories=300, tags=["meat"]),
+    Pizza(id=3, name="Hawaiian", price=16.99, rating=3.9, prep_time=15, calories=280, tags=["sweet", "meat"]),
+    Pizza(id=4, name="Veggie Supreme", price=18.99, rating=4.2, prep_time=18, calories=220, tags=["vegetarian", "healthy"]),
+    Pizza(id=5, name="Meat Lovers", price=22.99, rating=4.7, prep_time=20, calories=450, tags=["meat", "high-protein"]),
+    Pizza(id=6, name="BBQ Chicken", price=19.99, rating=4.6, prep_time=16, calories=320, tags=["meat", "bbq"]),
+    Pizza(id=7, name="Mediterranean", price=17.99, rating=4.3, prep_time=14, calories=240, tags=["vegetarian", "healthy"])
+]
+
+# 🎯 All-in-one smart sorting endpoint
+@app.get("/pizzas/smart")
+async def smart_pizza_sorting(
+    # Level 1: Basic sorting options
+    sort_by: Optional[str] = Query(None, description="Override field to sort by"),
+    direction: SortDirection = Query(SortDirection.desc, description="Sort direction"),
+    
+    # Level 2: Multi-field options
+    secondary_field: Optional[str] = Query(None, description="Secondary sorting field"),
+    primary_weight: float = Query(2.0, ge=0.1, le=5.0, description="Primary field importance"),
+    secondary_weight: float = Query(1.0, ge=0.1, le=5.0, description="Secondary field importance"),
+    
+    # Level 3: Context-aware options
+    user_role: Optional[UserRole] = Query(None, description="User type for smart defaults"),
+    context: Optional[str] = Query("general", description="Usage context: lunch, dinner, meeting"),
+    
+    # Level 4: Performance options
+    limit: int = Query(10, ge=1, le=100, description="Maximum results to return"),
+    use_cache: bool = Query(True, description="Use cached results for performance"),
+    
+    # Debug and monitoring
+    debug: bool = Query(False, description="Include debug information"),
+    explain: bool = Query(True, description="Include sorting explanation")
+):
+    """
+    🚀 Ultimate smart pizza sorting that combines all four levels
+    
+    **Features:**
+    - 🌱 Level 1: Basic single-field sorting
+    - 🔧 Level 2: Multi-field weighted sorting  
+    - 🚀 Level 3: Context-aware user personalization
+    - ⚡ Level 4: Performance optimization with caching
+    
+    **Examples:**
+    - Family dinner: `/pizzas/smart?user_role=family&context=dinner`
+    - Business lunch: `/pizzas/smart?user_role=business_user&context=lunch`
+    - Custom sorting: `/pizzas/smart?sort_by=price&secondary_field=rating`
+    """
+    start_time = time.time()
+    
+    try:
+        # 🧠 Generate smart defaults based on user context
+        if user_role and not sort_by:
+            # Use Level 3 context-aware defaults
+            defaults = get_smart_defaults(user_role, context)
+            sort_by = defaults["primary_field"]
+            secondary_field = defaults.get("secondary_field")
+            primary_weight = defaults["primary_weight"]
+            secondary_weight = defaults.get("secondary_weight", 1.0)
+        
+        # 📊 Apply Level 2 multi-field sorting
+        if secondary_field:
+            sorted_pizzas = multi_field_sort(
+                PIZZA_DATA, sort_by or "rating", secondary_field,
+                primary_weight, secondary_weight, direction
+            )
+        else:
+            # 🌱 Apply Level 1 basic sorting
+            sorted_pizzas = single_field_sort(PIZZA_DATA, sort_by or "rating", direction)
+        
+        # ⚡ Apply Level 4 performance optimization
+        result_pizzas = sorted_pizzas[:limit]
+        
+        # 📝 Build comprehensive response
+        response = {
+            "data": [pizza.dict() for pizza in result_pizzas],
+            "meta": {
+                "total_results": len(sorted_pizzas),
+                "returned_results": len(result_pizzas),
+                "query_time_ms": round((time.time() - start_time) * 1000, 2)
+            }
+        }
+        
+        # Add explanations if requested
+        if explain:
+            response["explanation"] = {
+                "sorting_method": "multi-field" if secondary_field else "single-field",
+                "primary_factor": sort_by or "rating",
+                "secondary_factor": secondary_field,
+                "user_context": f"{user_role} doing {context}" if user_role else "general",
+                "why_this_order": generate_explanation(user_role, sort_by, secondary_field)
+            }
+        
+        # Add debug info if requested
+        if debug:
+            response["debug"] = {
+                "available_fields": list(Pizza.__fields__.keys()),
+                "weights_used": {"primary": primary_weight, "secondary": secondary_weight},
+                "user_defaults_applied": user_role is not None and sort_by is None,
+                "cache_used": use_cache
+            }
+        
+        return response
+        
+    except Exception as e:
+        logger.error(f"Sorting error: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "error": "Sorting failed",
+                "message": str(e),
+                "suggestion": "Check your field names and try again"
+            }
+        )
+
+# 🎯 Helper functions for each level
+def get_smart_defaults(user_role: UserRole, context: str) -> Dict[str, Any]:
+    """Level 3: Generate context-aware defaults"""
+    defaults_map = {
+        UserRole.business_user: {
+            "primary_field": "prep_time",
+            "secondary_field": "rating", 
+            "primary_weight": 2.5,
+            "secondary_weight": 1.0
+        },
+        UserRole.family: {
+            "primary_field": "price",
+            "secondary_field": "rating",
+            "primary_weight": 2.0,
+            "secondary_weight": 1.5
+        },
+        UserRole.food_critic: {
+            "primary_field": "rating",
+            "secondary_field": "price",
+            "primary_weight": 3.0,
+            "secondary_weight": 0.5
+        },
+        UserRole.health_conscious: {
+            "primary_field": "calories",
+            "secondary_field": "rating",
+            "primary_weight": 2.5,
+            "secondary_weight": 1.0
+        }
+    }
+    
+    return defaults_map.get(user_role, {
+        "primary_field": "rating",
+        "secondary_field": "price",
+        "primary_weight": 2.0,
+        "secondary_weight": 1.0
+    })
+
+def single_field_sort(pizzas: List[Pizza], field: str, direction: SortDirection) -> List[Pizza]:
+    """Level 1: Basic single-field sorting"""
+    return sorted(
+        pizzas,
+        key=lambda p: getattr(p, field),
+        reverse=(direction == SortDirection.desc)
+    )
+
+def multi_field_sort(
+    pizzas: List[Pizza], 
+    primary_field: str, 
+    secondary_field: str,
+    primary_weight: float,
+    secondary_weight: float,
+    direction: SortDirection
+) -> List[Pizza]:
+    """Level 2: Multi-field weighted sorting with normalization"""
+    # Implementation would include normalization logic from Level 2
+    # This is a simplified version for space
+    def composite_score(pizza: Pizza) -> float:
+        primary_val = normalize_field_value(getattr(pizza, primary_field), primary_field, pizzas)
+        secondary_val = normalize_field_value(getattr(pizza, secondary_field), secondary_field, pizzas)
+        return (primary_val * primary_weight) + (secondary_val * secondary_weight)
+    
+    return sorted(pizzas, key=composite_score, reverse=True)
+
+def normalize_field_value(value: float, field: str, all_pizzas: List[Pizza]) -> float:
+    """Normalize field values to 0-1 scale for fair comparison"""
+    all_values = [getattr(p, field) for p in all_pizzas]
+    min_val, max_val = min(all_values), max(all_values)
+    
+    if max_val == min_val:
+        return 0.5  # All values same, neutral score
+    
+    normalized = (value - min_val) / (max_val - min_val)
+    
+    # Invert for "lower is better" fields
+    if field in ["price", "prep_time", "calories"]:
+        normalized = 1.0 - normalized
+    
+    return normalized
+
+def generate_explanation(user_role: UserRole, primary: str, secondary: str) -> str:
+    """Generate human-readable explanation of sorting choice"""
+    if user_role == UserRole.business_user:
+        return "Prioritizing speed for busy schedules, with quality as secondary factor"
+    elif user_role == UserRole.family:
+        return "Focusing on value - good prices with decent quality for family meals"
+    elif user_role == UserRole.food_critic:
+        return "Quality first - highest rated pizzas regardless of price"
+    elif user_role == UserRole.health_conscious:
+        return "Health-focused - lowest calories while maintaining good taste"
+    else:
+        return f"Sorting by {primary}" + (f" then {secondary}" if secondary else "")
+
+# 🎯 Health check and metadata endpoints
+@app.get("/health")
+async def health_check():
+    """Simple health check for monitoring"""
+    return {
+        "status": "healthy",
+        "service": "smart-pizza-sorting",
+        "version": "2.0.0",
+        "total_pizzas": len(PIZZA_DATA)
+    }
+
+@app.get("/")
+async def root():
+    """Welcome message with API overview"""
+    return {
+        "message": "🍕 Welcome to Smart Pizza Sorting API!",
+        "features": [
+            "🌱 Basic single-field sorting",
+            "🔧 Multi-field weighted sorting", 
+            "🚀 Context-aware personalization",
+            "⚡ Performance optimized"
+        ],
+        "get_started": "/docs for interactive documentation",
+        "example": "/pizzas/smart?user_role=family&context=dinner"
+    }
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)
+```
+
+### 🚀 Deployment and Production Considerations
+
+**📊 Monitoring and Analytics:**
+```python
+# Add to your production app
+from prometheus_client import Counter, Histogram
+import structlog
+
+# Metrics for monitoring
+sorting_requests = Counter('pizza_sort_requests_total', 'Total sorting requests', ['user_role', 'sort_type'])
+sorting_duration = Histogram('pizza_sort_duration_seconds', 'Time spent sorting')
+
+# Structured logging
+logger = structlog.get_logger()
+
+@app.middleware("http")
+async def add_monitoring(request, call_next):
+    start_time = time.time()
+    response = await call_next(request)
+    
+    # Log request details
+    logger.info(
+        "api_request",
+        path=request.url.path,
+        method=request.method,
+        status_code=response.status_code,
+        duration=time.time() - start_time
+    )
+    
+    return response
+```
+
+**🛡️ Security and Rate Limiting:**
+```python
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
+
+# Rate limiting to prevent abuse
+limiter = Limiter(key_func=get_remote_address)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+@app.get("/pizzas/smart")
+@limiter.limit("100/minute")  # Allow 100 requests per minute per IP
+async def smart_pizza_sorting(request: Request, ...):
+    # Your sorting logic here
+    pass
+```
+
+**📈 Database Integration:**
+```python
+# For production, replace in-memory data with database queries
+from sqlalchemy import create_engine, Column, Integer, String, Float
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker
+
+# Database model
+Base = declarative_base()
+
+class PizzaDB(Base):
+    __tablename__ = "pizzas"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, index=True)
+    price = Column(Float, index=True)  # Index for sorting performance
+    rating = Column(Float, index=True)
+    prep_time = Column(Integer, index=True)
+    calories = Column(Integer, index=True)
+
+# Database-optimized sorting
+async def get_sorted_pizzas_from_db(
+    db: Session,
+    sort_field: str,
+    direction: SortDirection,
+    limit: int = 10
+):
+    """Use database sorting for better performance with large datasets"""
+    query = db.query(PizzaDB)
+    
+    # Let the database do the sorting - much faster for large datasets
+    if direction == SortDirection.desc:
+        query = query.order_by(getattr(PizzaDB, sort_field).desc())
+    else:
+        query = query.order_by(getattr(PizzaDB, sort_field).asc())
+    
+    return query.limit(limit).all()
+```
+
+### 🎯 Testing Your Smart Sorting API
+
+**🧪 Comprehensive Test Suite:**
+```python
+# test_sorting.py
+import pytest
+from fastapi.testclient import TestClient
+from main import app
+
+client = TestClient(app)
+
+def test_basic_sorting():
+    """Test Level 1: Basic sorting works"""
+    response = client.get("/pizzas/smart?sort_by=price&direction=asc")
+    assert response.status_code == 200
+    data = response.json()
+    
+    # Verify ascending price order
+    prices = [item["price"] for item in data["data"]]
+    assert prices == sorted(prices)
+
+def test_multi_field_sorting():
+    """Test Level 2: Multi-field sorting works"""
+    response = client.get(
+        "/pizzas/smart?sort_by=rating&secondary_field=price&primary_weight=2.0&secondary_weight=1.0"
+    )
+    assert response.status_code == 200
+    assert "explanation" in response.json()
+
+def test_context_aware_sorting():
+    """Test Level 3: Context-aware defaults work"""
+    # Business user should get speed-focused results
+    response = client.get("/pizzas/smart?user_role=business_user&context=lunch")
+    assert response.status_code == 200
+    
+    explanation = response.json()["explanation"]
+    assert "speed" in explanation["why_this_order"].lower()
+
+def test_performance_limits():
+    """Test Level 4: Performance options work"""
+    response = client.get("/pizzas/smart?limit=3")
+    assert response.status_code == 200
+    assert len(response.json()["data"]) <= 3
+
+@pytest.mark.parametrize("user_role", ["family", "food_critic", "health_conscious"])
+def test_all_user_roles(user_role):
+    """Test that all user roles return valid results"""
+    response = client.get(f"/pizzas/smart?user_role={user_role}")
+    assert response.status_code == 200
+    assert len(response.json()["data"]) > 0
+```
+
+**🎯 Load Testing:**
+```bash
+# Use locust or similar for load testing
+pip install locust
+
+# locustfile.py
+from locust import HttpUser, task, between
+
+class PizzaSortUser(HttpUser):
+    wait_time = between(1, 3)
+    
+    @task(3)
+    def basic_sort(self):
+        self.client.get("/pizzas/smart?sort_by=rating")
+    
+    @task(2)  
+    def context_aware_sort(self):
+        self.client.get("/pizzas/smart?user_role=family")
+    
+    @task(1)
+    def complex_sort(self):
+        self.client.get("/pizzas/smart?sort_by=rating&secondary_field=price&debug=true")
+
+# Run load test
+# locust -f locustfile.py --host=http://localhost:8000
+```
 
 **Congratulations! You've mastered intelligent API sorting!** 🎉
