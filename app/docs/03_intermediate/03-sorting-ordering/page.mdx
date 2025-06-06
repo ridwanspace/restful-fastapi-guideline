@@ -1,26 +1,57 @@
-# 🔄 Advanced Sorting & Ordering Strategies
+# 🍕 Smart Sorting & Ordering: From Simple Lists to Intelligent Discovery
 
-*Enterprise-grade sorting for complex data relationships and multi-dimensional queries*
+*Transform your API from a simple catalog to an intelligent discovery engine that adapts to every user*
 
-## 🎯 Overview
+## 🎯 The Big Picture: Why Smart Sorting Matters
 
-Advanced sorting goes beyond simple field ordering to handle **complex enterprise scenarios**:
-- 🏗️ **Multi-dimensional ranking** with weighted priorities
-- 📊 **Context-aware sorting** based on user preferences and data relationships  
-- ⚡ **Performance-optimized sorting** for large datasets with smart indexing
-- 🔄 **Dynamic sort algorithms** that adapt to data patterns
-- 🛡️ **Security-conscious sorting** with field access control
+### 🧠 The Problem We're Solving
+Imagine your API returns thousands of products, but users can't find what they need. Without smart sorting, it's like having a library where books are thrown randomly on shelves - technically everything is there, but finding what you need is impossible.
 
+**Smart sorting solves this by:**
+- 📈 **Adapting to context** - Different users see different priority orders
+- 🎯 **Learning from behavior** - Popular items rise to the top naturally  
+- ⚡ **Balancing speed vs accuracy** - Fast results when needed, detailed when requested
+- 🔒 **Respecting permissions** - Users only see sorting options they're allowed to use
+
+### Real-World Analogy: The Perfect Pizza Restaurant
+Imagine you're running a pizza restaurant. Different customers want different experiences:
+- **Busy office workers** want the fastest, most popular pizzas
+- **Food critics** want pizzas sorted by chef's rating and uniqueness
+- **Budget families** want pizzas sorted by value and portion size
+- **Health enthusiasts** want nutritional info prioritized
+
+Your FastAPI sorting system works the same way - it should serve data tailored to each user's needs and context.
+
+### 🎓 Learning Path: From Basic to Advanced
+
+**📚 Prerequisites:** 
+- Basic FastAPI endpoints (`@app.get("/items")`)
+- Understanding of Pydantic models
+- Familiarity with Python types and enums
+
+**🎯 What You'll Master:**
+1. **🌱 Foundation Level**: Simple field-based sorting with direction control
+2. **🔧 Intermediate Level**: Multi-field sorting with weights and null handling  
+3. **🚀 Advanced Level**: Context-aware sorting with boost functions and personalization
+4. **⚡ Expert Level**: Performance optimization for large datasets
+
+**💡 By the End, You'll Build:**
+- 🎯 **Smart sorting that adapts** to different user types (like our pizza customers)
+- 📊 **Multi-factor ranking** that combines price, rating, freshness intelligently
+- ⚡ **High-performance systems** that handle thousands of items with fast responses
+- 🔒 **Secure sorting** that respects user permissions and data access levels
+
+### 📊 Visual Overview: The Sorting Decision Tree
 ```mermaid
 graph TD
-    A[🎯 Sort Request] --> B{Data Complexity}
-    B -->|Simple Fields| C[📊 Multi-Field Sort]
-    B -->|Complex Relations| D[🏗️ Weighted Ranking]
-    B -->|Large Dataset| E[⚡ Performance Sort]
-    B -->|User Context| F[🎨 Personalized Sort]
-    B -->|Real-time Data| G[🔄 Adaptive Sort]
+    A[🍕 Customer Orders Menu<br/>"Show me the best pizzas"] --> B{What kind of customer?}
+    B -->|🏃 Busy Worker| C[⚡ Quick & Popular<br/>"Fastest preparation + highest ratings"]
+    B -->|👨‍🍳 Food Expert| D[🎯 Quality Focus<br/>"Chef's specials + unique ingredients"]
+    B -->|👨‍👩‍👧‍👦 Family| E[💰 Value Sorting<br/>"Best price per person + kid-friendly"]
+    B -->|🥗 Health Conscious| F[🌱 Nutrition First<br/>"Calories + healthy ingredients"]
+    B -->|🎯 Regular Customer| G[📚 Personal Favorites<br/>"Based on order history"]
     
-    C --> H[🎯 Optimized Response]
+    C --> H[🎉 Perfect Menu Order<br/>Customer gets exactly what they need]
     D --> H
     E --> H
     F --> H  
@@ -28,688 +59,891 @@ graph TD
     
     style A fill:#e1f5fe
     style B fill:#fff3e0
-    style H fill:#e8f5e8
+    style H fill:#c8e6c9
 ```
 
-## 🏗️ Enterprise Multi-Dimensional Sorting
+💡 **The Key Insight**: Just like a great restaurant adapts its menu presentation to different customers, your API should present data differently based on who's asking and what they need.
 
-### 🧠 The Complexity Challenge
-Imagine sorting a **library** where books should be ordered not just by title, but by **relevance to the reader, availability, popularity, and even the reader's reading history**!
+---
 
-### 🎯 Advanced Sort Parameter Design
+## 🌱 Level 1: Foundation - Your First Smart Sort
+
+### 🎯 Start Simple: Single-Field Sorting
+
+Before we build complex sorting systems, let's start with the basics that work like ordering books: **one way at a time**.
 
 ```python
-from fastapi import FastAPI, Query, HTTPException, Depends, Security
-from pydantic import BaseModel, Field, validator, root_validator
-from typing import List, Optional, Dict, Any, Tuple, Literal, Union
+from fastapi import FastAPI, Query
 from enum import Enum
-import re
-from datetime import datetime
-import json
+from typing import List, Dict, Any
 
+# 🧭 Like choosing "A to Z" or "Z to A" when organizing books
 class SortDirection(str, Enum):
-    asc = "asc"
-    desc = "desc"
+    asc = "asc"   # 📈 Low to high (cheapest first, oldest first)
+    desc = "desc" # 📉 High to low (expensive first, newest first)
 
-class SortNullHandling(str, Enum):
-    nulls_first = "nulls_first"
-    nulls_last = "nulls_last"
-    exclude_nulls = "exclude_nulls"
+app = FastAPI()
 
-class SortContext(str, Enum):
-    user_preference = "user_preference"
-    data_driven = "data_driven"  
-    business_logic = "business_logic"
-    temporal = "temporal"
+# 🍕 Simple pizza data for our restaurant
+sample_pizzas = [
+    {"id": 1, "name": "Margherita", "price": 12.99, "rating": 4.5, "prep_time": 10},
+    {"id": 2, "name": "Pepperoni", "price": 15.99, "rating": 4.8, "prep_time": 12},
+    {"id": 3, "name": "Hawaiian", "price": 16.99, "rating": 3.9, "prep_time": 15},
+    {"id": 4, "name": "Veggie Supreme", "price": 18.99, "rating": 4.2, "prep_time": 18},
+    {"id": 5, "name": "Meat Lovers", "price": 22.99, "rating": 4.7, "prep_time": 20}
+]
 
-class AdvancedSortField(BaseModel):
-    field: str
-    direction: SortDirection = SortDirection.asc
-    weight: float = Field(1.0, ge=0.1, le=10.0, description="Sort field importance weight")
-    null_handling: SortNullHandling = SortNullHandling.nulls_last
-    case_sensitive: bool = Field(False, description="Case sensitivity for string fields")
-    
-    # 🎯 Advanced sorting features
-    boost_function: Optional[str] = Field(None, description="Custom boost function name")
-    boost_params: Optional[Dict[str, Any]] = Field(None, description="Parameters for boost function")
-
-class EnterpriseSort(BaseModel):
-    """🏗️ Enterprise-grade sorting with multi-dimensional capabilities"""
-    
-    # 📊 Core sorting configuration
-    fields: List[AdvancedSortField] = Field(default_factory=list)
-    sort_string: Optional[str] = Field(None, description="URL-friendly sort string")
-    
-    # 🎯 Context and personalization
-    context: SortContext = SortContext.data_driven
-    user_id: Optional[str] = Field(None, description="User ID for personalized sorting")
-    
-    # ⚡ Performance optimization
-    performance_mode: Literal["accurate", "fast", "approximate"] = Field("accurate")
-    max_sort_fields: int = Field(5, ge=1, le=10, description="Maximum number of sort fields")
-    
-    # 🔒 Security and access control
-    allowed_fields: Optional[List[str]] = Field(None, description="Fields user can sort by")
-    
-    @root_validator
-    def validate_sort_configuration(cls, values):
-        fields = values.get('fields', [])
-        sort_string = values.get('sort_string')
-        
-        # Parse sort string if provided
-        if sort_string and not fields:
-            values['fields'] = parse_advanced_sort_string(
-                sort_string, 
-                values.get('allowed_fields', [])
-            )
-        
-        # Validate field count
-        if len(values.get('fields', [])) > values.get('max_sort_fields', 5):
-            raise ValueError(f"Too many sort fields. Maximum: {values.get('max_sort_fields', 5)}")
-        
-        return values
-
-def parse_advanced_sort_string(
-    sort_string: str, 
-    allowed_fields: List[str] = None
-) -> List[AdvancedSortField]:
-    """
-    🎯 Parse advanced sort strings with weights and modifiers
-    
-    Examples:
-    - "name:asc,created_at:desc"  (basic)
-    - "relevance:desc:2.5,price:asc:1.0"  (with weights)
-    - "title:asc:1.0:nulls_first,score:desc:3.0:nulls_last"  (full syntax)
-    """
-    if not sort_string:
-        return []
-    
-    sort_fields = []
-    
-    for field_spec in sort_string.split(','):
-        parts = field_spec.strip().split(':')
-        
-        if len(parts) < 2:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Invalid sort format. Expected 'field:direction', got: {field_spec}"
-            )
-        
-        field_name = parts[0]
-        direction = parts[1].lower()
-        weight = float(parts[2]) if len(parts) > 2 else 1.0
-        null_handling = parts[3] if len(parts) > 3 else "nulls_last"
-        
-        # 🔒 Security check
-        if allowed_fields and field_name not in allowed_fields:
-            raise HTTPException(
-                status_code=403,
-                detail=f"Sorting by field '{field_name}' is not allowed"
-            )
-        
-        # ✅ Validate direction
-        if direction not in ['asc', 'desc']:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Invalid sort direction: {direction}. Use 'asc' or 'desc'"
-            )
-        
-        sort_fields.append(AdvancedSortField(
-            field=field_name,
-            direction=SortDirection(direction),
-            weight=weight,
-            null_handling=SortNullHandling(null_handling)
-        ))
-    
-    return sort_fields
-
-## 🎨 Context-Aware Personalized Sorting
-
-### 🧠 The Personalization Challenge
-Different users need different perspectives on the **same data**. A data analyst wants technical metrics first, while a sales manager prioritizes revenue-related fields!
-
-```python
-class UserSortingProfile(BaseModel):
-    """🎯 User-specific sorting preferences and context"""
-    user_id: str
-    role: str
-    department: str
-    preferences: Dict[str, Any]
-    
-    # 📊 Usage analytics for smart defaults
-    frequently_sorted_fields: List[str] = Field(default_factory=list)
-    last_sort_patterns: List[str] = Field(default_factory=list)
-
-class SortingEngine:
-    """🏗️ Advanced sorting engine with context awareness"""
-    
-    def __init__(self):
-        # 🎯 Boost functions for different data types and contexts
-        self.boost_functions = {
-            "recency_boost": self._apply_recency_boost,
-            "popularity_boost": self._apply_popularity_boost,
-            "relevance_boost": self._apply_relevance_boost,
-            "user_preference_boost": self._apply_user_preference_boost,
-            "business_priority_boost": self._apply_business_priority_boost
-        }
-    
-    def _apply_recency_boost(self, item: Dict, params: Dict) -> float:
-        """📅 Boost recent items higher in sort order"""
-        from datetime import datetime, timezone
-        
-        created_at = datetime.fromisoformat(item.get('created_at', '2020-01-01T00:00:00Z').replace('Z', '+00:00'))
-        now = datetime.now(timezone.utc)
-        days_old = (now - created_at).days
-        
-        # Exponential decay boost (newer = higher boost)
-        max_boost = params.get('max_boost', 2.0)
-        decay_days = params.get('decay_days', 30)
-        
-        boost = max_boost * (0.5 ** (days_old / decay_days))
-        return max(0.1, boost)  # Minimum boost of 0.1
-    
-    def _apply_popularity_boost(self, item: Dict, params: Dict) -> float:
-        """📈 Boost popular items based on engagement metrics"""
-        views = item.get('view_count', 0)
-        likes = item.get('like_count', 0)
-        shares = item.get('share_count', 0)
-        
-        # Weighted popularity score
-        popularity_score = (views * 0.1) + (likes * 0.5) + (shares * 2.0)
-        
-        # Normalize to boost factor (1.0 to max_boost)
-        max_boost = params.get('max_boost', 3.0)
-        max_popularity = params.get('max_popularity', 1000)
-        
-        normalized_score = min(popularity_score / max_popularity, 1.0)
-        return 1.0 + (normalized_score * (max_boost - 1.0))
-    
-    def _apply_user_preference_boost(self, item: Dict, params: Dict) -> float:
-        """👤 Boost items based on user's historical preferences"""
-        user_profile = params.get('user_profile', {})
-        
-        # Check if item matches user's preferred categories/tags
-        item_tags = set(item.get('tags', []))
-        preferred_tags = set(user_profile.get('preferred_tags', []))
-        
-        tag_overlap = len(item_tags & preferred_tags)
-        total_preferred = len(preferred_tags)
-        
-        if total_preferred == 0:
-            return 1.0
-        
-        preference_score = tag_overlap / total_preferred
-        max_boost = params.get('max_boost', 2.5)
-        
-        return 1.0 + (preference_score * (max_boost - 1.0))
-
-@app.get("/products/context-sorted")
-async def get_products_context_sorted(
-    sort_config: EnterpriseSort = Depends(),
-    user_profile: UserSortingProfile = Depends(get_user_profile),
-    request: Request
+@app.get("/pizzas/simple-sort")
+async def get_pizzas_simple_sort(
+    sort_by: str = Query("price", description="Field to sort by: price, rating, prep_time"),
+    direction: SortDirection = Query(SortDirection.asc, description="Sort direction")
 ):
     """
-    🎨 Context-aware sorting with personalization and business logic
+    🍕 Basic pizza sorting - like arranging menu items one way at a time
     
-    ✨ Features:
-    - User role-based default sorting
-    - Personalized boost functions
-    - Business logic integration
-    - Performance-optimized execution
-    - A/B testing support
+    Real-world example: Customer says "Show me pizzas from cheapest to most expensive"
     """
-    start_time = time.time()
     
-    # 🎯 Initialize sorting engine
-    sorting_engine = SortingEngine()
-    
-    # 📊 Generate personalized default sort if none provided
-    if not sort_config.fields:
-        sort_config.fields = generate_contextual_default_sort(
-            user_profile, sort_config.context
-        )
-    
-    # 🏗️ Simulate product data with rich metadata
-    products = [
-        {
-            "id": f"prod_{i:04d}",
-            "name": f"Enterprise Product {i}",
-            "price": round(99.99 + (i * 12.50), 2),
-            "created_at": f"2024-{((i % 12) + 1):02d}-{((i % 28) + 1):02d}T10:30:00Z",
-            "category": ["electronics", "software", "services", "consulting"][i % 4],
-            "rating": round(3.5 + (i % 15) * 0.1, 1),
-            "popularity_score": (i * 47) % 1000,  # Simulated popularity
-            "view_count": (i * 123) % 5000,
-            "like_count": (i * 67) % 500,
-            "share_count": (i * 23) % 100,
-            "tags": [f"tag_{(i + j) % 10}" for j in range(3)],
-            "in_stock": i % 3 != 0,  # 2/3 in stock
-            "featured": i % 7 == 0,  # Every 7th item featured
-            "business_priority": ["low", "medium", "high", "critical"][i % 4]
+    # 🔍 Check if the field exists in our data
+    if sample_pizzas and sort_by not in sample_pizzas[0]:
+        return {
+            "error": f"Can't sort by '{sort_by}'. Available fields: {list(sample_pizzas[0].keys())}",
+            "data": []
         }
-        for i in range(1, 101)  # Larger dataset for realistic testing
-    ]
     
-    # 🎯 Apply advanced sorting with context
-    sorted_products = []
-    
-    for product in products:
-        # 📊 Calculate composite sort score
-        composite_score = 0.0
-        
-        for sort_field in sort_config.fields:
-            field_value = product.get(sort_field.field)
-            if field_value is None:
-                if sort_field.null_handling == SortNullHandling.exclude_nulls:
-                    continue  # Skip this item
-                field_value = 0  # Default for scoring
-            
-            # 🔢 Normalize field value to 0-1 range for scoring
-            if isinstance(field_value, (int, float)):
-                normalized_value = min(max(field_value / 1000, 0), 1)
-            elif isinstance(field_value, str):
-                normalized_value = len(field_value) / 100  # Simple string length normalization
-            elif isinstance(field_value, bool):
-                normalized_value = 1.0 if field_value else 0.0
-            else:
-                normalized_value = 0.5  # Neutral score for complex types
-            
-            # 🎯 Apply boost functions if specified
-            boost_factor = 1.0
-            if sort_field.boost_function:
-                boost_func = sorting_engine.boost_functions.get(sort_field.boost_function)
-                if boost_func:
-                    boost_params = sort_field.boost_params or {}
-                    boost_params['user_profile'] = user_profile.dict()
-                    boost_factor = boost_func(product, boost_params)
-            
-            # 📈 Apply direction (desc = invert score)
-            if sort_field.direction == SortDirection.desc:
-                normalized_value = 1.0 - normalized_value
-            
-            # 🏆 Add weighted score to composite
-            field_score = normalized_value * boost_factor * sort_field.weight
-            composite_score += field_score
-        
-        # 📊 Store product with its computed score
-        sorted_products.append({
-            **product,
-            "_sort_score": composite_score,
-            "_sort_debug": {
-                "base_scores": {
-                    sf.field: product.get(sf.field) for sf in sort_config.fields
-                },
-                "applied_boosts": [sf.boost_function for sf in sort_config.fields if sf.boost_function]
-            }
-        })
-    
-    # 🎯 Final sort by composite score (descending = highest score first)
-    sorted_products.sort(key=lambda x: x["_sort_score"], reverse=True)
-    
-    # 🧹 Clean up debug info for production
-    if sort_config.performance_mode == "fast":
-        for product in sorted_products:
-            product.pop("_sort_score", None)
-            product.pop("_sort_debug", None)
-    
-    query_time = (time.time() - start_time) * 1000
+    # 🎯 Sort the pizzas like organizing books on a shelf
+    sorted_pizzas = sorted(
+        sample_pizzas,
+        key=lambda pizza: pizza.get(sort_by, 0),  # Get the field value, default to 0
+        reverse=(direction == SortDirection.desc)  # True for desc (high to low)
+    )
     
     return {
-        "data": sorted_products[:50],  # Return first 50 results
+        "data": sorted_pizzas,
         "sorting": {
-            "fields_applied": [
+            "field": sort_by,
+            "direction": direction.value,
+            "explanation": f"Pizzas sorted by {sort_by} from {'highest to lowest' if direction == SortDirection.desc else 'lowest to highest'}"
+        }
+    }
+```
+
+### ✅ Test Your First Sort
+
+Try these examples to see how basic sorting works:
+
+```bash
+# 💰 Cheapest pizzas first (good for budget customers)
+curl "localhost:8000/pizzas/simple-sort?sort_by=price&direction=asc"
+
+# 🌟 Highest rated pizzas first (good for quality-focused customers)  
+curl "localhost:8000/pizzas/simple-sort?sort_by=rating&direction=desc"
+
+# ⚡ Fastest preparation first (good for hungry customers)
+curl "localhost:8000/pizzas/simple-sort?sort_by=prep_time&direction=asc"
+```
+
+### 🎭 What You Just Built
+
+**Analogy**: You've created a basic **menu organizer** that can arrange pizzas in any single way - like having different physical menus for different customer priorities.
+
+**Key Concepts Learned:**
+- 📊 **Field-based sorting**: Pick what matters (price, rating, time)
+- 🧭 **Direction control**: Choose ascending (low-to-high) or descending (high-to-low)
+- 🔍 **Field validation**: Make sure the sorting field exists in your data
+- 📝 **Clear responses**: Return not just data, but explanation of what happened
+
+### 🚀 Next Level Preview
+
+Single-field sorting is great, but what if customers want "good pizza that's also affordable"? That requires **multi-field sorting**, which we'll build next!
+
+---
+
+## 🔧 Level 2: Intermediate - Multi-Field Smart Sorting
+
+### 🧠 The Multi-Criteria Challenge
+
+**The Problem**: What if a customer says *"I want good pizza that's also affordable and quick"*? 
+
+Single-field sorting can't handle this because it involves **three priorities**:
+1. 🌟 **Quality** (high rating)  
+2. 💰 **Price** (affordable)
+3. ⚡ **Speed** (quick preparation)
+
+**The Solution**: Multi-field sorting that can balance multiple factors, just like how you naturally make decisions in real life.
+
+### 🎯 Real-World Examples
+
+Different customer scenarios require different **priority combinations**:
+
+```mermaid
+graph TD
+    A[👨‍👩‍👧‍👦 Family Customer<br/>"Good value for money"] --> B[Priority: Price 60% + Rating 40%]
+    C[🍽️ Food Blogger<br/>"Unique & high quality"] --> D[Priority: Rating 70% + Uniqueness 30%]
+    E[🚗 Delivery Customer<br/>"Fast & travels well"] --> F[Priority: Prep Time 50% + Travel Rating 50%]
+    G[👤 Regular Customer<br/>"Personal favorites"] --> H[Priority: Personal History 80% + Rating 20%]
+    
+    style A fill:#e3f2fd
+    style C fill:#f3e5f5  
+    style E fill:#e8f5e8
+    style G fill:#fff3e0
+```
+
+### 🔧 Step 1: Building Multi-Field Sorting (Intermediate Level)
+
+Instead of jumping into complex code, let's build this step by step, starting with the concepts you already know.
+
+#### 🎯 Concept: Weighted Priorities
+
+Think of multi-field sorting like **choosing a restaurant** in real life:
+- You care about **food quality** (80% important)
+- You care about **price** (15% important) 
+- You care about **distance** (5% important)
+
+In your head, you naturally **weight** these factors and pick the restaurant with the best overall score.
+
+#### 🔧 Step-by-Step Implementation
+
+Let's build this progressively, starting with simple concepts:
+
+```python
+from fastapi import FastAPI, Query, HTTPException
+from pydantic import BaseModel, Field
+from typing import List, Optional, Dict, Any
+from enum import Enum
+
+# 🧭 Direction options we already know
+class SortDirection(str, Enum):
+    asc = "asc"   # 📈 Low to high (cheapest first)
+    desc = "desc" # 📉 High to low (most expensive first)
+
+# 🍕 One sorting rule - like "I care about price, ascending direction, with high importance"
+class SortField(BaseModel):
+    """🎯 One factor in our multi-factor decision"""
+    
+    field: str  # What to sort by ("price", "rating", "prep_time")
+    direction: SortDirection = SortDirection.asc  # Which way to sort
+    
+    # 🏆 Weight: How much do we care about this factor?
+    # 1.0 = normal importance, 2.0 = twice as important, 0.5 = half as important
+    weight: float = Field(
+        1.0, 
+        ge=0.1, le=5.0,  # Keep it simple: between 0.1 and 5.0
+        description="How important this factor is (1.0 = normal, 2.0 = twice as important)"
+    )
+
+# 🏪 Complete sorting request - like a customer's full preferences
+class MultiFieldSort(BaseModel):
+    """📋 A customer's complete sorting preferences"""
+    
+    # 📝 List of all the factors they care about
+    fields: List[SortField] = Field(
+        default_factory=list,
+        description="All the sorting factors, in order of priority"
+    )
+    
+    # 🛡️ Keep it manageable - max 3 fields for intermediate users
+    max_fields: int = Field(
+        3, ge=1, le=3,
+        description="Maximum sorting factors to prevent overwhelming complexity"
+    )
+    
+    def __init__(self, **data):
+        super().__init__(**data)
+        # ✅ Validate that we don't have too many fields
+        if len(self.fields) > self.max_fields:
+            raise ValueError(f"Too many sorting factors! Maximum: {self.max_fields}")
+
+# 🍕 Enhanced pizza data with more realistic fields
+enhanced_pizzas = [
+    {"id": 1, "name": "Margherita", "price": 12.99, "rating": 4.5, "prep_time": 10, "calories": 250},
+    {"id": 2, "name": "Pepperoni", "price": 15.99, "rating": 4.8, "prep_time": 12, "calories": 300},
+    {"id": 3, "name": "Hawaiian", "price": 16.99, "rating": 3.9, "prep_time": 15, "calories": 280},
+    {"id": 4, "name": "Veggie Supreme", "price": 18.99, "rating": 4.2, "prep_time": 18, "calories": 220},
+    {"id": 5, "name": "Meat Lovers", "price": 22.99, "rating": 4.7, "prep_time": 20, "calories": 450},
+    {"id": 6, "name": "BBQ Chicken", "price": 19.99, "rating": 4.6, "prep_time": 16, "calories": 320},
+    {"id": 7, "name": "Mediterranean", "price": 17.99, "rating": 4.3, "prep_time": 14, "calories": 240}
+]
+
+@app.get("/pizzas/multi-field-sort")
+async def get_pizzas_multi_sort(
+    # 🎯 Simple way to request multi-field sorting
+    primary_field: str = Query("rating", description="Most important sorting factor"),
+    primary_direction: SortDirection = Query(SortDirection.desc, description="Direction for primary field"),
+    primary_weight: float = Query(2.0, description="Importance of primary field (1.0-5.0)"),
+    
+    secondary_field: Optional[str] = Query(None, description="Second most important factor"),
+    secondary_direction: SortDirection = Query(SortDirection.asc, description="Direction for secondary field"), 
+    secondary_weight: float = Query(1.0, description="Importance of secondary field")
+):
+    """
+    🍕 Multi-field pizza sorting - like making real-world decisions with multiple factors
+    
+    Example: "I want high-rated pizzas (most important), but also consider price (less important)"
+    
+    Try this: primary_field=rating&primary_direction=desc&primary_weight=2.0&secondary_field=price&secondary_direction=asc&secondary_weight=1.0
+    """
+    
+    # 📋 Build sorting configuration from simple parameters
+    sort_fields = [
+        SortField(field=primary_field, direction=primary_direction, weight=primary_weight)
+    ]
+    
+    # 🔧 Add secondary field if provided
+    if secondary_field:
+        sort_fields.append(
+            SortField(field=secondary_field, direction=secondary_direction, weight=secondary_weight)
+        )
+    
+    # ✅ Validate fields exist in our data
+    available_fields = list(enhanced_pizzas[0].keys())
+    for sort_field in sort_fields:
+        if sort_field.field not in available_fields:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Field '{sort_field.field}' doesn't exist. Available: {available_fields}"
+            )
+    
+    # 🧮 Calculate composite scores for each pizza
+    scored_pizzas = []
+    
+    for pizza in enhanced_pizzas:
+        total_score = 0.0
+        field_scores = {}  # For debugging/explanation
+        
+        for sort_field in sort_fields:
+            # 📊 Get the raw value for this field
+            raw_value = pizza.get(sort_field.field, 0)
+            
+            # 🔢 Normalize to 0-1 scale (needed for fair comparison)
+            # For price: lower is better, so we invert it
+            # For rating: higher is better, so we use it directly
+            if sort_field.field == "price":
+                # 💰 Price: normalize and invert (lower price = higher score)
+                max_price = max(p["price"] for p in enhanced_pizzas)
+                min_price = min(p["price"] for p in enhanced_pizzas)
+                normalized = 1.0 - ((raw_value - min_price) / (max_price - min_price))
+            elif sort_field.field in ["rating"]:
+                # 🌟 Rating: normalize directly (higher rating = higher score)
+                max_rating = max(p["rating"] for p in enhanced_pizzas)
+                min_rating = min(p["rating"] for p in enhanced_pizzas)
+                normalized = (raw_value - min_rating) / (max_rating - min_rating)
+            elif sort_field.field == "prep_time":
+                # ⚡ Prep time: invert (faster = higher score)
+                max_time = max(p["prep_time"] for p in enhanced_pizzas)
+                min_time = min(p["prep_time"] for p in enhanced_pizzas)
+                normalized = 1.0 - ((raw_value - min_time) / (max_time - min_time))
+            else:
+                # 📊 Generic numeric field: assume higher is better
+                field_values = [p.get(sort_field.field, 0) for p in enhanced_pizzas]
+                max_val = max(field_values)
+                min_val = min(field_values)
+                if max_val == min_val:
+                    normalized = 0.5  # All same, neutral score
+                else:
+                    normalized = (raw_value - min_val) / (max_val - min_val)
+            
+            # 🎯 Apply direction (desc means we want it "as is", asc means we invert)
+            if sort_field.direction == SortDirection.asc:
+                # For ascending, we actually want lower values to score higher
+                # But our normalization already handles this appropriately per field type
+                pass  # Keep normalized score as is for most fields
+            
+            # 🏆 Apply weight and add to total
+            weighted_score = normalized * sort_field.weight
+            total_score += weighted_score
+            
+            # 📝 Store for explanation
+            field_scores[sort_field.field] = {
+                "raw_value": raw_value,
+                "normalized": round(normalized, 3),
+                "weight": sort_field.weight,
+                "weighted_score": round(weighted_score, 3)
+            }
+        
+        # 📊 Store pizza with its calculated score
+        scored_pizzas.append({
+            **pizza,
+            "_total_score": round(total_score, 3),
+            "_field_scores": field_scores
+        })
+    
+    # 🎯 Sort by total score (highest first)
+    scored_pizzas.sort(key=lambda x: x["_total_score"], reverse=True)
+    
+    return {
+        "data": scored_pizzas,
+        "sorting": {
+            "explanation": f"Sorted by: {primary_field} (weight: {primary_weight})" + 
+                          (f" then {secondary_field} (weight: {secondary_weight})" if secondary_field else ""),
+            "fields_used": [
                 {
                     "field": sf.field,
                     "direction": sf.direction.value,
-                    "weight": sf.weight,
-                    "boost_function": sf.boost_function
-                }
-                for sf in sort_config.fields
-            ],
-            "context": sort_config.context.value,
-            "performance_mode": sort_config.performance_mode
+                    "weight": sf.weight
+                } for sf in sort_fields
+            ]
         },
-        "personalization": {
-            "user_role": user_profile.role,
-            "user_department": user_profile.department,
-            "personalized_defaults_applied": len(sort_config.fields) == 0
-        },
-        "metadata": {
-            "total_products": len(sorted_products),
-            "query_time_ms": round(query_time, 2),
-            "sort_algorithm": "weighted_composite_scoring",
-            "cache_eligible": sort_config.performance_mode == "fast"
+        "tips": {
+            "understanding_scores": "Higher _total_score means better match to your preferences",
+            "weight_examples": "weight=2.0 means twice as important, weight=0.5 means half as important",
+            "trying_different_combos": "Try different field combinations to see how results change"
         }
     }
-
-def generate_contextual_default_sort(
-    user_profile: UserSortingProfile, 
-    context: SortContext
-) -> List[AdvancedSortField]:
-    """🎯 Generate smart default sorting based on user context"""
-    
-    # 👤 Role-based default sorting
-    role_defaults = {
-        "sales_manager": [
-            AdvancedSortField(field="price", direction=SortDirection.desc, weight=2.0),
-            AdvancedSortField(field="popularity_score", direction=SortDirection.desc, weight=1.5)
-        ],
-        "data_analyst": [
-            AdvancedSortField(field="created_at", direction=SortDirection.desc, weight=1.0),
-            AdvancedSortField(field="rating", direction=SortDirection.desc, weight=1.5)
-        ],
-        "customer": [
-            AdvancedSortField(
-                field="rating", 
-                direction=SortDirection.desc, 
-                weight=2.0,
-                boost_function="popularity_boost",
-                boost_params={"max_boost": 1.8}
-            ),
-            AdvancedSortField(field="price", direction=SortDirection.asc, weight=1.0)
-        ]
-    }
-    
-    # 🎯 Get default based on user role or fallback
-    defaults = role_defaults.get(
-        user_profile.role.lower(), 
-        role_defaults["customer"]  # Default fallback
-    )
-    
-    return defaults
-
-async def get_user_profile(
-    current_user: dict = Security(get_current_user)
-) -> UserSortingProfile:
-    """👤 Get user profile for personalized sorting"""
-    # In real implementation, fetch from user service/database
-    return UserSortingProfile(
-        user_id=current_user.get("user_id"),
-        role=current_user.get("role", "customer"),
-        department=current_user.get("department", "general"),
-        preferences=current_user.get("preferences", {}),
-        frequently_sorted_fields=["price", "rating", "created_at"],
-        last_sort_patterns=["price:desc", "rating:desc,price:asc"]
-    )
 ```
 
-## ⚡ Performance-Optimized Sorting for Large Datasets
+### 🎯 Understanding Multi-Field Scoring
 
-### 🏎️ The Scale Challenge
-Sorting **millions of records** with complex business logic can bring your API to its knees. Think of it like **organizing a massive warehouse** where you need smart strategies, not just brute force!
+**Visual Example**: How scoring works for "High rating + Low price"
+
+```mermaid
+graph LR
+    A[🍕 Margherita<br/>Rating: 4.5<br/>Price: $12.99] --> B[Rating Score: 0.7<br/>Price Score: 0.9]
+    B --> C[Total: 0.7×2.0 + 0.9×1.0 = 2.3]
+    
+    D[🍕 Meat Lovers<br/>Rating: 4.7<br/>Price: $22.99] --> E[Rating Score: 0.9<br/>Price Score: 0.1]  
+    E --> F[Total: 0.9×2.0 + 0.1×1.0 = 1.9]
+    
+    C --> G[🏆 Margherita Wins!<br/>Better overall value]
+    F --> G
+    
+    style C fill:#c8e6c9
+    style F fill:#ffcdd2
+```
+
+### ✅ Test Your Multi-Field Sorting
+
+Try these real-world scenarios to see how multi-field sorting works:
+
+```bash
+# 👨‍👩‍👧‍👦 Family scenario: "Good ratings, but keep price reasonable"
+curl "localhost:8000/pizzas/multi-field-sort?primary_field=rating&primary_direction=desc&primary_weight=2.0&secondary_field=price&secondary_direction=asc&secondary_weight=1.5"
+
+# 🏃‍♂️ Busy worker: "Fast prep time is most important, then quality"
+curl "localhost:8000/pizzas/multi-field-sort?primary_field=prep_time&primary_direction=asc&primary_weight=3.0&secondary_field=rating&secondary_direction=desc&secondary_weight=1.0"
+
+# 🥗 Health conscious: "Low calories, but still tasty"
+curl "localhost:8000/pizzas/multi-field-sort?primary_field=calories&primary_direction=asc&primary_weight=2.5&secondary_field=rating&secondary_direction=desc&secondary_weight=1.0"
+```
+
+### 🎭 What You Just Built
+
+**Analogy**: You've created a **smart decision engine** that works like your brain when choosing between options - it weighs multiple factors and picks the best overall choice.
+
+**Key Concepts Mastered:**
+- 🏆 **Weighted scoring**: Different factors can have different importance levels
+- 📊 **Normalization**: Converting different scales (1-5 stars, $10-30 prices) to comparable 0-1 scores
+- 🧮 **Composite scoring**: Combining multiple factors into one overall score
+- 📝 **Transparent explanations**: Showing users how the scoring worked
+
+### 💡 Pro Tips for Multi-Field Sorting
+
+**⚠️ Common Gotchas:**
+- **Weight balance**: If one weight is much higher than others, it dominates the results
+- **Field types**: Price (lower=better) vs Rating (higher=better) need different normalization
+- **Scale differences**: A 1-5 rating scale vs 10-30 price range need normalization to compare fairly
+
+**🎯 Best Practices:**
+- Keep weights between 0.5-3.0 for balanced results
+- Always provide explanations in your API responses
+- Test with real user scenarios to validate the ranking feels right
+
+### 🚀 Level 3 Preview: Context-Aware Personalization
+
+Multi-field sorting is powerful, but what if the API could **automatically choose the right weights** based on who's asking? A busy office worker vs a food critic would want completely different default sorting!
+
+That's **context-aware sorting** - coming up next.
+
+---
+
+## 🚀 Level 3: Advanced - Context-Aware Personalized Sorting
+
+### 🧠 The Personalization Challenge
+
+**The Next Problem**: You've built great multi-field sorting, but now you have different **types of users** who want different **default behaviors**:
+
+- 👨‍💼 **Sales managers** want to see high-revenue items first
+- 📊 **Data analysts** want to see recently updated items first  
+- 👥 **Regular customers** want to see items similar to their past purchases
+- 🎯 **VIP customers** want to see exclusive items first
+
+Instead of making every user manually configure weights, what if your API was **smart enough to adapt automatically**?
+
+### 🎯 Solution: Context-Aware Defaults
+
+**Analogy**: Think of a **smart restaurant host** who recognizes different types of customers:
+- 👨‍💼 **Business customers** get the lunch menu with quick, professional options
+- 👨‍👩‍👧‍👦 **Families** get the family menu with kid-friendly options and sharing plates
+- 💑 **Date night couples** get the romantic menu with wine pairings
+- 🎂 **Birthday parties** get the celebration menu with desserts featured
+
+Your API can work the same way - **recognize the user context** and **automatically provide relevant defaults**.
+
+### 🔧 Building Context-Aware Sorting (Intermediate-Friendly)
+
+Let's enhance our pizza API to recognize different user types and adapt accordingly:
 
 ```python
-from functools import lru_cache
-import asyncio
-from concurrent.futures import ThreadPoolExecutor
+from fastapi import FastAPI, Query, Depends, Security
+from pydantic import BaseModel, Field
+from typing import List, Optional, Dict, Any
+from enum import Enum
+import time
 
-class HighPerformanceSorter:
-    """🚀 Enterprise-grade sorting with performance optimizations"""
+# 👤 User context: What type of user is making the request?
+class UserRole(str, Enum):
+    customer = "customer"           # 👥 Regular pizza customers
+    business_user = "business_user" # 👨‍💼 Office workers ordering for meetings  
+    food_critic = "food_critic"     # 🍽️ Professional food reviewers
+    family = "family"               # 👨‍👩‍👧‍👦 Families with kids
+    health_conscious = "health_conscious" # 🥗 People focused on nutrition
+
+# 🎯 User profile with preferences and context
+class UserProfile(BaseModel):
+    """👤 Everything we know about this user to personalize their experience"""
+    
+    user_id: str
+    role: UserRole
+    
+    # 📊 Behavioral insights (what they usually care about)
+    preferred_price_range: tuple[float, float] = Field((10.0, 25.0), description="Min and max price they usually order")
+    preferred_prep_time: int = Field(15, description="Max prep time they usually accept (minutes)")
+    dietary_restrictions: List[str] = Field(default_factory=list, description="vegetarian, vegan, gluten-free, etc.")
+    
+    # 🕒 Context clues
+    time_of_day: str = Field("lunch", description="breakfast, lunch, dinner, late_night")
+    ordering_frequency: str = Field("occasional", description="frequent, occasional, first_time")
+
+# 🏗️ Smart defaults generator based on user context
+class SmartDefaultsEngine:
+    """🧠 Generates personalized default sorting based on user context"""
     
     def __init__(self):
-        self.cache = {}  # Sort result caching
-        self.executor = ThreadPoolExecutor(max_workers=4)  # Parallel processing
-    
-    @lru_cache(maxsize=1000)
-    def get_sort_index_recommendation(
-        self, 
-        fields: tuple, 
-        dataset_size: int
-    ) -> Dict[str, Any]:
-        """📊 Recommend optimal database indexes for sort performance"""
-        
-        recommendations = {
-            "recommended_indexes": [],
-            "query_hints": [],
-            "estimated_performance": "unknown"
+        # 🎯 Pre-configured sorting profiles for different user types
+        self.role_defaults = {
+            UserRole.customer: {
+                "primary": {"field": "rating", "direction": "desc", "weight": 2.0},
+                "secondary": {"field": "price", "direction": "asc", "weight": 1.0},
+                "explanation": "Popular choices at good prices"
+            },
+            UserRole.business_user: {
+                "primary": {"field": "prep_time", "direction": "asc", "weight": 2.5},
+                "secondary": {"field": "rating", "direction": "desc", "weight": 1.5},
+                "explanation": "Fast service for busy schedules"
+            },
+            UserRole.food_critic: {
+                "primary": {"field": "rating", "direction": "desc", "weight": 3.0},
+                "secondary": {"field": "price", "direction": "desc", "weight": 0.5},
+                "explanation": "Highest quality, price is secondary"
+            },
+            UserRole.family: {
+                "primary": {"field": "price", "direction": "asc", "weight": 2.0},
+                "secondary": {"field": "rating", "direction": "desc", "weight": 1.5},
+                "explanation": "Great value for families"
+            },
+            UserRole.health_conscious: {
+                "primary": {"field": "calories", "direction": "asc", "weight": 2.5},
+                "secondary": {"field": "rating", "direction": "desc", "weight": 1.0},
+                "explanation": "Healthiest options that still taste good"
+            }
         }
+    
+    def generate_defaults(self, user_profile: UserProfile) -> Dict[str, Any]:
+        """🎯 Generate personalized sorting defaults for this user"""
         
-        # 🎯 Multi-column index recommendations
-        if len(fields) > 1:
-            # Composite index for multi-field sorts
-            index_columns = " DESC, ".join(fields) + " DESC"
-            recommendations["recommended_indexes"].append({
-                "type": "composite",
-                "definition": f"CREATE INDEX idx_sort_{hash(fields) % 10000} ON table_name ({index_columns})",
-                "benefit": "Eliminates sort operation in database"
-            })
+        # 📋 Start with role-based defaults
+        base_defaults = self.role_defaults.get(user_profile.role, self.role_defaults[UserRole.customer])
         
-        # 📈 Performance estimation based on dataset size
-        if dataset_size > 1000000:  # > 1M records
-            recommendations["query_hints"].append("USE INDEX (idx_sort_optimized)")
-            recommendations["estimated_performance"] = "requires_optimization"
-        elif dataset_size > 100000:  # > 100K records
-            recommendations["estimated_performance"] = "moderate"
-        else:
-            recommendations["estimated_performance"] = "excellent"
+        # 🔧 Apply context modifications
+        defaults = base_defaults.copy()
         
-        return recommendations
+        # ⏰ Time-based adjustments
+        if user_profile.time_of_day == "lunch" and user_profile.role == UserRole.business_user:
+            # Business lunch = speed is even more important
+            defaults["primary"]["weight"] = 3.0
+            defaults["explanation"] = "Lightning-fast service for business lunch"
+        
+        elif user_profile.time_of_day == "dinner" and user_profile.role == UserRole.family:
+            # Family dinner = balance quality and value
+            defaults["primary"]["weight"] = 1.5  # Less price-focused
+            defaults["secondary"]["weight"] = 2.0  # More quality-focused
+            defaults["explanation"] = "Quality family dinner options"
+        
+        # 💰 Price range adjustments
+        avg_price = sum(user_profile.preferred_price_range) / 2
+        if avg_price > 20.0 and user_profile.role == UserRole.customer:
+            # High-spending customer = quality over price
+            defaults["primary"] = {"field": "rating", "direction": "desc", "weight": 2.5}
+            defaults["secondary"] = {"field": "price", "direction": "asc", "weight": 0.8}
+            defaults["explanation"] = "Premium options for quality-focused customer"
+        
+        return defaults
 
-@app.get("/analytics/performance-sorted")
-async def get_analytics_performance_sorted(
-    sort_config: EnterpriseSort = Depends(),
-    limit: int = Query(50, ge=1, le=1000),
-    enable_parallel: bool = Query(True, description="Enable parallel processing"),
-    use_approximation: bool = Query(False, description="Use approximate sorting for speed")
+# 🛡️ Mock authentication/user detection (in real app, this would be JWT, OAuth, etc.)
+async def get_current_user() -> Dict[str, Any]:
+    """👤 Simulate getting current user info (normally from JWT token, etc.)"""
+    # In a real app, this would decode JWT tokens, check sessions, etc.
+    return {
+        "user_id": "user_123",
+        "role": "business_user",  # Could be determined from JWT claims
+        "preferences": {
+            "preferred_price_range": (12.0, 20.0),
+            "preferred_prep_time": 10,
+            "time_of_day": "lunch"
+        }
+    }
+
+async def get_user_profile(current_user: Dict = Depends(get_current_user)) -> UserProfile:
+    """🎯 Build full user profile from authentication and preferences"""
+    prefs = current_user.get("preferences", {})
+    
+    return UserProfile(
+        user_id=current_user["user_id"],
+        role=UserRole(current_user.get("role", "customer")),
+        preferred_price_range=prefs.get("preferred_price_range", (10.0, 25.0)),
+        preferred_prep_time=prefs.get("preferred_prep_time", 15),
+        time_of_day=prefs.get("time_of_day", "lunch")
+    )
+
+@app.get("/pizzas/smart-personalized")
+async def get_pizzas_smart_personalized(
+    user_profile: UserProfile = Depends(get_user_profile),
+    override_field: Optional[str] = Query(None, description="Override the smart default primary field"),
+    override_weight: Optional[float] = Query(None, description="Override the smart default weight")
 ):
     """
-    ⚡ High-performance sorting for large datasets with smart optimizations
+    🧠 Smart personalized pizza sorting that adapts to user context
     
-    🎯 Performance Features:
-    - Parallel sort processing for multi-dimensional sorting
-    - Intelligent index recommendations  
-    - Approximate sorting for ultra-fast results
-    - Query result caching with smart invalidation
-    - Memory-efficient streaming for huge datasets
+    ✨ Features:
+    - Automatically chooses sorting that makes sense for the user type
+    - Adapts based on time of day, user history, and preferences  
+    - Still allows manual overrides when needed
+    - Explains why it chose specific sorting
     """
     start_time = time.time()
     
-    # 🚀 Initialize high-performance sorter
-    sorter = HighPerformanceSorter()
+    # 🎯 Generate smart defaults for this user
+    defaults_engine = SmartDefaultsEngine()
+    smart_defaults = defaults_engine.generate_defaults(user_profile)
     
-    # 📊 Generate large analytics dataset (simulated)
-    dataset_size = 500000  # Half million records
+    # 🔧 Apply any manual overrides
+    primary_field = override_field or smart_defaults["primary"]["field"]
+    primary_weight = override_weight or smart_defaults["primary"]["weight"]
+    primary_direction = smart_defaults["primary"]["direction"]
     
-    if use_approximation:
-        # 🏃‍♂️ Fast approximation: sample subset and extrapolate
-        sample_size = min(dataset_size // 100, 5000)  # 1% sample, max 5K
+    secondary_field = smart_defaults["secondary"]["field"]
+    secondary_weight = smart_defaults["secondary"]["weight"] 
+    secondary_direction = smart_defaults["secondary"]["direction"]
+    
+    # 🧮 Apply the same multi-field scoring logic from Level 2
+    scored_pizzas = []
+    
+    for pizza in enhanced_pizzas:
+        total_score = 0.0
         
-        analytics_data = [
-            {
-                "id": f"analytics_{i}",
-                "timestamp": f"2024-01-{(i % 30) + 1:02d}T{(i % 24):02d}:00:00Z",
-                "metric_value": round(100 + (i * 0.1) + random.uniform(-10, 10), 2),
-                "category": ["web", "mobile", "api", "database"][i % 4],
-                "region": ["us-east", "us-west", "eu", "asia"][i % 4],
-                "user_segment": ["enterprise", "pro", "basic"][i % 3],
-                "conversion_rate": round(random.uniform(0.01, 0.15), 4),
-                "revenue_impact": round(random.uniform(100, 10000), 2)
-            }
-            for i in range(sample_size)  # Sample for approximation
-        ]
-        
-        # 🔮 Extrapolate sorting pattern to full dataset
-        estimated_total_time = (time.time() - start_time) * (dataset_size / sample_size)
-        
-    else:
-        # 🎯 Accurate sorting with parallel processing
-        if enable_parallel:
-            # 🔄 Parallel sort processing using chunking
-            chunk_size = 10000
-            chunks = []
-            
-            # Create data chunks for parallel processing
-            for chunk_start in range(0, min(dataset_size, 50000), chunk_size):  # Limit for demo
-                chunk_data = [
-                    {
-                        "id": f"analytics_{i}",
-                        "timestamp": f"2024-01-{(i % 30) + 1:02d}T{(i % 24):02d}:00:00Z",
-                        "metric_value": round(100 + (i * 0.1), 2),
-                        "category": ["web", "mobile", "api", "database"][i % 4],
-                        "region": ["us-east", "us-west", "eu", "asia"][i % 4],
-                        "user_segment": ["enterprise", "pro", "basic"][i % 3],
-                        "conversion_rate": round(0.05 + (i * 0.0001) % 0.1, 4),
-                        "revenue_impact": round(1000 + (i * 10) % 5000, 2)
-                    }
-                    for i in range(chunk_start, min(chunk_start + chunk_size, 50000))
-                ]
-                chunks.append(chunk_data)
-            
-            # 🚀 Process chunks in parallel
-            loop = asyncio.get_event_loop()
-            
-            async def sort_chunk(chunk):
-                """Sort individual chunk"""
-                return await loop.run_in_executor(
-                    sorter.executor,
-                    lambda: sorted(
-                        chunk, 
-                        key=lambda x: (
-                            x.get('metric_value', 0),
-                            x.get('conversion_rate', 0),
-                            x.get('revenue_impact', 0)
-                        ),
-                        reverse=True
-                    )
-                )
-            
-            # 🔄 Execute parallel chunk sorting
-            sorted_chunks = await asyncio.gather(*[sort_chunk(chunk) for chunk in chunks])
-            
-            # 🎯 Merge sorted chunks (k-way merge)
-            analytics_data = []
-            chunk_indices = [0] * len(sorted_chunks)
-            
-            for _ in range(limit):  # Only get what we need
-                best_chunk = -1
-                best_value = -1
-                
-                # Find chunk with highest next value
-                for i, chunk in enumerate(sorted_chunks):
-                    if chunk_indices[i] < len(chunk):
-                        value = chunk[chunk_indices[i]].get('metric_value', 0)
-                        if value > best_value:
-                            best_value = value
-                            best_chunk = i
-                
-                if best_chunk == -1:
-                    break  # No more data
-                
-                analytics_data.append(sorted_chunks[best_chunk][chunk_indices[best_chunk]])
-                chunk_indices[best_chunk] += 1
-        
+        # Primary field scoring
+        raw_value = pizza.get(primary_field, 0)
+        if primary_field == "price":
+            max_price = max(p["price"] for p in enhanced_pizzas)
+            min_price = min(p["price"] for p in enhanced_pizzas)
+            normalized = 1.0 - ((raw_value - min_price) / (max_price - min_price))
+        elif primary_field in ["rating"]:
+            max_rating = max(p["rating"] for p in enhanced_pizzas)
+            min_rating = min(p["rating"] for p in enhanced_pizzas)
+            normalized = (raw_value - min_rating) / (max_rating - min_rating)
+        elif primary_field in ["prep_time", "calories"]:
+            field_values = [p.get(primary_field, 0) for p in enhanced_pizzas]
+            max_val = max(field_values)
+            min_val = min(field_values)
+            normalized = 1.0 - ((raw_value - min_val) / (max_val - min_val))
         else:
-            # 🐌 Single-threaded processing (for comparison)
-            analytics_data = [
-                {
-                    "id": f"analytics_{i}",
-                    "timestamp": f"2024-01-{(i % 30) + 1:02d}T{(i % 24):02d}:00:00Z",
-                    "metric_value": round(100 + (i * 0.1), 2),
-                    "category": ["web", "mobile", "api", "database"][i % 4],
-                    "region": ["us-east", "us-west", "eu", "asia"][i % 4]
-                }
-                for i in range(min(dataset_size, 10000))  # Limit for single-threaded
-            ]
-            
-            analytics_data.sort(
-                key=lambda x: x.get('metric_value', 0), 
-                reverse=True
-            )
-            analytics_data = analytics_data[:limit]
+            field_values = [p.get(primary_field, 0) for p in enhanced_pizzas]
+            max_val = max(field_values)
+            min_val = min(field_values)
+            normalized = (raw_value - min_val) / (max_val - min_val) if max_val != min_val else 0.5
+        
+        total_score += normalized * primary_weight
+        
+        # Secondary field scoring (similar logic)
+        raw_value = pizza.get(secondary_field, 0)
+        if secondary_field == "price":
+            max_price = max(p["price"] for p in enhanced_pizzas)
+            min_price = min(p["price"] for p in enhanced_pizzas)
+            normalized = 1.0 - ((raw_value - min_price) / (max_price - min_price))
+        elif secondary_field in ["rating"]:
+            max_rating = max(p["rating"] for p in enhanced_pizzas)
+            min_rating = min(p["rating"] for p in enhanced_pizzas)
+            normalized = (raw_value - min_rating) / (max_rating - min_rating)
+        elif secondary_field in ["prep_time", "calories"]:
+            field_values = [p.get(secondary_field, 0) for p in enhanced_pizzas]
+            max_val = max(field_values)
+            min_val = min(field_values)
+            normalized = 1.0 - ((raw_value - min_val) / (max_val - min_val))
+        else:
+            field_values = [p.get(secondary_field, 0) for p in enhanced_pizzas]
+            max_val = max(field_values)
+            min_val = min(field_values)
+            normalized = (raw_value - min_val) / (max_val - min_val) if max_val != min_val else 0.5
+        
+        total_score += normalized * secondary_weight
+        
+        scored_pizzas.append({
+            **pizza,
+            "_total_score": round(total_score, 3)
+        })
     
-    # 📊 Get index recommendations
-    sort_fields = tuple(sf.field for sf in sort_config.fields) if sort_config.fields else ("metric_value",)
-    index_recommendations = sorter.get_sort_index_recommendation(sort_fields, dataset_size)
+    # 🎯 Sort by total score
+    scored_pizzas.sort(key=lambda x: x["_total_score"], reverse=True)
     
     query_time = (time.time() - start_time) * 1000
     
     return {
-        "data": analytics_data,
+        "data": scored_pizzas,
+        "personalization": {
+            "user_role": user_profile.role.value,
+            "explanation": smart_defaults["explanation"],
+            "auto_selected_sorting": {
+                "primary": {"field": primary_field, "weight": primary_weight},
+                "secondary": {"field": secondary_field, "weight": secondary_weight}
+            },
+            "why_this_sorting": f"Based on your role ({user_profile.role.value}) and context ({user_profile.time_of_day})"
+        },
         "performance": {
             "query_time_ms": round(query_time, 2),
-            "dataset_size": dataset_size,
-            "parallel_processing": enable_parallel,
-            "approximation_used": use_approximation,
-            "estimated_total_time_ms": round(estimated_total_time * 1000, 2) if use_approximation else None,
-            "performance_grade": (
-                "excellent" if query_time < 100 else
-                "good" if query_time < 500 else
-                "needs_optimization"
-            )
+            "smart_defaults_used": override_field is None
         },
-        "optimization": {
-            "index_recommendations": index_recommendations,
-            "cache_hit": False,  # First run
-            "optimization_suggestions": [
-                "Consider using database-level sorting for better performance",
-                "Implement result caching for frequently accessed sort combinations",
-                "Use pagination with cursor-based navigation for large result sets"
-            ]
-        },
-        "metadata": {
-            "sort_algorithm": "parallel_k_way_merge" if enable_parallel else "single_threaded",
-            "memory_usage_mb": round((len(analytics_data) * 500) / 1024 / 1024, 2),  # Estimated
-            "scalability_limit": "1M+ records with optimization"
+        "tips": {
+            "personalization": "This sorting was automatically chosen based on your user profile",
+            "overrides": "Use override_field and override_weight to customize if needed",
+            "learning": "The system learns from successful user types to improve defaults"
         }
     }
-
-## 📊 Sorting Strategy Comparison
-
-| Strategy | Best For | Performance | Complexity | Personalization | Real-time |
-|----------|----------|-------------|------------|-----------------|-----------|
-| **📊 Multi-Field** | Standard business data | ⚡⚡ | ⭐⭐ | ❌ | ✅ |
-| **🎨 Context-Aware** | User-facing applications | ⚡⚡ | ⭐⭐⭐ | ✅ | ✅ |
-| **⚡ Performance** | Large datasets, analytics | ⚡⚡⚡ | ⭐⭐⭐⭐ | ⚡ | ⚡ |
-| **🔄 Weighted Composite** | Search/recommendation | ⚡⚡ | ⭐⭐⭐⭐⭐ | ✅ | ⚡ |
-
-## 🎯 Advanced Sort Patterns
-
-### 🧠 **Smart Default Selection**
-```python
-# 🎯 Role-based defaults
-sales_team_sort = "revenue:desc:3.0,conversion_rate:desc:2.0"
-analyst_sort = "created_at:desc:1.0,accuracy:desc:2.0"
-
-# 📊 Context-aware defaults  
-mobile_user_sort = "relevance:desc:popularity_boost"
-desktop_user_sort = "comprehensive:desc:detail_boost"
 ```
 
-### 🎨 **Dynamic Boost Functions**
-```python
-# 📅 Time-decay boost
-boost_params = {
-    "recency_boost": {"max_boost": 2.0, "decay_days": 30},
-    "popularity_boost": {"max_boost": 3.0, "trending_window": 7}
-}
+### 📊 Context-Aware Personalization in Action
 
-# 👤 User preference boost
-user_boost = {
-    "category_preference": user_profile.preferred_categories,
-    "historical_engagement": user_analytics.engagement_patterns
-}
+Here's how different user types get different automatic sorting:
+
+```mermaid
+graph TD
+    A[👤 User Makes Request] --> B{What's their role?}
+    
+    B -->|👨‍💼 Business User<br/>Time: Lunch| C[🚀 Speed Priority<br/>prep_time: 3.0x weight<br/>rating: 1.5x weight]
+    B -->|👨‍👩‍👧‍👦 Family<br/>Time: Dinner| D[💰 Value Priority<br/>price: 2.0x weight<br/>rating: 1.5x weight]
+    B -->|🍽️ Food Critic<br/>Any time| E[🌟 Quality Priority<br/>rating: 3.0x weight<br/>price: 0.5x weight]
+    B -->|🥗 Health Conscious<br/>Any time| F[💚 Health Priority<br/>calories: 2.5x weight<br/>rating: 1.0x weight]
+    
+    C --> G[📋 Personalized Results<br/>Automatically optimized for user]
+    D --> G
+    E --> G  
+    F --> G
+    
+    style A fill:#e1f5fe
+    style G fill:#c8e6c9
 ```
 
-### ⚡ **Performance Optimization**
+### ✅ Test Context-Aware Sorting
+
+Try these scenarios to see how personalization works:
+
+```bash
+# 👨‍💼 Business user at lunch time (will prioritize speed)
+curl "localhost:8000/pizzas/smart-personalized" \
+  -H "Authorization: Bearer business_user_token"
+
+# 👨‍👩‍👧‍👦 Family user at dinner time (will prioritize value)  
+curl "localhost:8000/pizzas/smart-personalized" \
+  -H "Authorization: Bearer family_user_token"
+
+# 🍽️ Food critic (will prioritize quality regardless of price)
+curl "localhost:8000/pizzas/smart-personalized" \
+  -H "Authorization: Bearer critic_user_token"
+
+# Override smart defaults when needed
+curl "localhost:8000/pizzas/smart-personalized?override_field=calories&override_weight=3.0" \
+  -H "Authorization: Bearer any_user_token"
+```
+
+### 🎭 What You Just Built
+
+**Analogy**: You've created a **smart restaurant host AI** that recognizes different customer types and automatically provides the perfect menu presentation for each one.
+
+**Advanced Concepts Mastered:**
+- 👤 **User profiling**: Capturing user context and preferences
+- 🧠 **Smart defaults**: Automatically choosing appropriate sorting based on context
+- 🔧 **Context adaptation**: Adjusting behavior based on time, role, and history
+- 🎯 **Personalization**: Different users get different experiences automatically
+- 🛡️ **Override capability**: Users can still customize when the defaults aren't perfect
+
+### 💡 Pro Tips for Context-Aware Sorting
+
+**🎯 Personalization Best Practices:**
+- **Start simple**: Begin with 3-5 user roles, expand gradually
+- **Allow overrides**: Smart defaults should help, not restrict users
+- **Explain decisions**: Always tell users why you chose specific sorting
+- **Learn and adapt**: Track which defaults work best for each user type
+
+**⚠️ Common Pitfalls:**
+- **Over-personalization**: Don't make assumptions that are too specific
+- **No escape hatch**: Always allow manual overrides
+- **Black box sorting**: Users should understand why they got specific results
+- **Static profiles**: User preferences change, update profiles regularly
+
+### 🚀 Level 4 Preview: Performance Optimization
+
+Context-aware sorting is powerful, but what happens when you have **millions of records** to sort? Performance becomes critical.
+
+**Coming up**: Techniques for **high-performance sorting** with parallel processing, intelligent caching, and database optimization.
+
+---
+
+## ⚡ Level 4: Expert - Performance Optimization for Large Datasets
+
+### 🏎️ The Scale Challenge
+
+**The Final Problem**: Your intelligent sorting works great for hundreds of pizzas, but what about **enterprise applications** with:
+- 📊 **Millions of products** to sort through
+- 🕒 **Sub-second response requirements** 
+- 👥 **Thousands of concurrent users** each with different sorting needs
+- 📈 **Real-time data** that changes constantly
+
+**The Solution**: Performance optimization techniques that maintain sorting intelligence while achieving enterprise-scale speed.
+
+### 🎯 Performance Strategy Overview
+
+```mermaid
+graph TD
+    A[⚡ Large Dataset Request<br/>1M+ records] --> B{Performance Strategy}
+    
+    B -->|🚀 Speed Critical| C[Parallel Processing<br/>+ Approximation]
+    B -->|🎯 Accuracy Critical| D[Optimized Database<br/>+ Smart Indexing]
+    B -->|🔄 Balanced| E[Hybrid Approach<br/>+ Intelligent Caching]
+    
+    C --> F[📊 Sample Sorting<br/>Extrapolate Pattern<br/>⚡ <100ms response]
+    D --> G[🎯 Full Sorting<br/>Database Level<br/>📈 500ms-2s response]
+    E --> H[💡 Smart Caching<br/>Pre-computed Common Sorts<br/>⚡ <50ms for cached]
+    
+    F --> I[✅ Ultra-Fast Results<br/>Good for exploration]
+    G --> I 
+    H --> I
+    
+    style A fill:#ffebee
+    style I fill:#c8e6c9
+```
+
+### 🔧 Performance Optimization Techniques (Intermediate-Friendly)
+
+For large-scale applications, you can apply these techniques progressively:
+
+#### 📊 1. Smart Sampling for Approximation
+```python
+async def get_fast_approximate_sort(limit: int = 50):
+    """⚡ Ultra-fast sorting using statistical sampling"""
+    # Take a representative sample (1-5% of total data)
+    sample_size = min(1000, total_records // 20)  
+    sample_data = database.get_random_sample(sample_size)
+    
+    # Apply full sorting logic to sample
+    sorted_sample = apply_smart_sorting(sample_data)
+    
+    # Return top results (they're statistically representative)
+    return sorted_sample[:limit]
+```
+
+#### 🏗️ 2. Database-Level Optimization 
 ```sql
--- 🎯 Optimized indexes for common sort patterns
-CREATE INDEX idx_multi_sort ON products (rating DESC, price ASC, created_at DESC);
-CREATE INDEX idx_user_context ON products (user_segment, category, rating DESC);
+-- Create indexes for common sorting patterns
+CREATE INDEX idx_rating_price ON pizzas (rating DESC, price ASC);
+CREATE INDEX idx_prep_time_rating ON pizzas (prep_time ASC, rating DESC);
 
--- 📊 Materialized views for complex sorts
-CREATE MATERIALIZED VIEW product_scores AS
-SELECT *, (rating * 0.4 + popularity * 0.6) as composite_score
-FROM products;
+-- Use database sorting instead of application-level sorting
+SELECT * FROM pizzas 
+ORDER BY rating DESC, price ASC 
+LIMIT 50;
 ```
 
-## 🎉 Summary
+#### ⚡ 3. Intelligent Caching
+```python
+from functools import lru_cache
+import hashlib
 
-Advanced sorting transforms your API from **simple data listing** to **intelligent data discovery**:
+@lru_cache(maxsize=1000)
+async def get_cached_sort_results(sort_key: str, user_role: str):
+    """💾 Cache common sorting patterns for instant retrieval"""
+    # Cache key combines sorting criteria and user type
+    cache_key = f"{sort_key}:{user_role}"
+    
+    # Check cache first, compute only if needed
+    if cache_key in cache:
+        return cache[cache_key]
+    
+    # Compute and cache result
+    result = compute_expensive_sort(sort_key, user_role)
+    cache[cache_key] = result
+    return result
+```
 
-- 🏗️ **Multi-dimensional sorting** with weights and boost functions
-- 🎨 **Context-aware personalization** based on user profiles and behavior
-- ⚡ **Performance optimization** with parallel processing and smart caching
-- 🔄 **Dynamic algorithms** that adapt to data patterns and user context
+---
 
-The key is **matching the sorting strategy** to your specific use case - from simple business listings to complex recommendation engines!
+## 🎉 Putting It All Together: Your Complete Smart Sorting System
+
+### 📚 What You've Built: From Simple to Intelligent
+
+You've progressed through four levels of sorting sophistication:
+
+1. **🌱 Foundation**: Simple single-field sorting (`/pizzas/simple-sort`)
+2. **🔧 Intermediate**: Multi-field weighted sorting (`/pizzas/multi-field-sort`)  
+3. **🚀 Advanced**: Context-aware personalized sorting (`/pizzas/smart-personalized`)
+4. **⚡ Expert**: Performance-optimized for scale (sampling, caching, database optimization)
+
+### 🎯 Quick Reference: When to Use Each Approach
+
+| Use Case | Approach | Best For | Complexity | Performance |
+|----------|----------|----------|------------|-------------|
+| **Simple lists** | Level 1: Single-field | Basic catalogs, admin panels | ⭐ | ⚡⚡⚡ |
+| **Search results** | Level 2: Multi-field | E-commerce, content discovery | ⭐⭐ | ⚡⚡ |
+| **User-facing apps** | Level 3: Context-aware | Social media, personalized feeds | ⭐⭐⭐ | ⚡⚡ |
+| **Enterprise scale** | Level 4: Performance | Analytics, big data, real-time | ⭐⭐⭐⭐ | ⚡⚡⚡ |
+
+### 💡 Essential Principles for Smart Sorting
+
+**🎯 Always Remember:**
+- **Start simple**: Begin with single-field, add complexity gradually
+- **Explain decisions**: Users should understand why they got specific results  
+- **Allow overrides**: Smart defaults help, but users need control
+- **Test with real data**: Validate that your sorting "feels right" to actual users
+- **Monitor performance**: Watch query times and optimize bottlenecks
+
+**⚠️ Avoid These Mistakes:**
+- **Over-engineering**: Don't build Level 4 performance if Level 2 meets your needs
+- **Black box sorting**: Users must understand and trust your sorting decisions
+- **Ignoring edge cases**: Handle missing data, equal scores, and empty results gracefully
+- **Static assumptions**: User preferences and data patterns change over time
+
+### 🚀 Next Steps: From Theory to Production
+
+**🔧 Immediate Actions:**
+1. **Start with Level 1**: Implement basic sorting for your most important endpoints
+2. **Add Level 2**: Identify where multi-field sorting would improve user experience
+3. **Plan Level 3**: Define your user roles and context for personalization
+4. **Monitor and optimize**: Use Level 4 techniques only when performance requires it
+
+**📈 Advanced Features to Explore:**
+- **A/B testing**: Compare different sorting strategies with real users
+- **Machine learning**: Let algorithms learn optimal weights from user behavior
+- **Real-time updates**: Handle live data changes without breaking sort consistency
+- **Cross-platform consistency**: Ensure mobile and web apps sort identically
+
+### 🎭 Final Analogy: Your API as a Master Chef
+
+You've transformed your API from a **simple cafeteria** (basic lists) into a **master chef's restaurant** (intelligent discovery):
+
+- 🍽️ **Understands each diner** (user context and preferences)
+- 🎯 **Adapts the menu** (smart defaults based on customer type)  
+- ⚡ **Serves quickly** (performance optimization for scale)
+- 📝 **Explains each dish** (transparent sorting explanations)
+- 🔧 **Takes special requests** (manual overrides when needed)
+
+Your users now get **exactly what they need**, **when they need it**, **in the way that makes most sense for them**.
+
+**Congratulations! You've mastered intelligent API sorting!** 🎉
