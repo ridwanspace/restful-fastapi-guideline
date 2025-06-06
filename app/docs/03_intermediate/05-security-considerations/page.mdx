@@ -1,784 +1,961 @@
-# 🛡️ Advanced Security Considerations
+# 🛡️ Advanced Security Hardening
 
-*Enterprise-grade security patterns for production FastAPI applications*
+*Beyond authentication: Advanced fortress defenses for production FastAPI applications*
 
-Building secure APIs requires a multi-layered approach that goes beyond basic input validation. This section covers advanced security patterns, threat modeling, and enterprise-grade protection strategies.
+## 🏰 From Kingdom to Fortress: Beyond Basic Security
 
-## 🎯 Security Architecture Overview
+Now that you've built your [authentication and authorization kingdom](/docs/03_intermediate/04-authentication-authorization), it's time to fortify it against advanced threats. This guide covers the specialized security layers that transform a basic kingdom into an impenetrable fortress.
 
-> 💡 **Think of API security like a medieval castle**: You need multiple defensive layers - the moat (network security), walls (input validation), guards (authentication), and internal checkpoints (authorization) - working together to protect the kingdom (your data).
+## 🎯 The Advanced Security Fortress
+
+> 💡 **Security Layers Analogy**: Think of your API like an advanced military fortress with specialized defenses. You already have the castle gates (authentication) and royal keys (authorization). Now we're adding moats with crocodiles (input validation), watchtowers with archers (threat detection), and secret escape tunnels (data protection).
 
 ```mermaid
 graph TD
-    A[External Request] --> B[Network Layer Security]
-    B --> C[Rate Limiting & DDoS Protection]
-    C --> D[Input Validation & Sanitization]
-    D --> E[Authentication Verification]
-    E --> F[Authorization Checks]
-    F --> G[Business Logic Security]
-    G --> H[Data Access Controls]
-    H --> I[Audit Logging]
-    I --> J[Secure Response]
+    A[🌐 External Threats] --> B[🌊 Advanced Moat<br/>Input Sanitization & Validation]
+    B --> C[🏹 Archer Towers<br/>Rate Limiting & DDoS Protection]
+    C --> D[🎯 Specialized Guards<br/>Custom Security Middleware]
+    D --> E[🏰 Your Kingdom<br/>Authenticated & Authorized API]
+    E --> F[🔐 Royal Vault<br/>Data Protection & Encryption]
+    F --> G[📚 Royal Chronicle<br/>Security Audit & Monitoring]
+    G --> H[🛡️ Fortress Response<br/>Secure Output]
     
     style A fill:#ffebee
-    style J fill:#e8f5e8
-    style E fill:#fff3e0
+    style H fill:#e8f5e8
+    style E fill:#f3e5f5
     style F fill:#fff3e0
 ```
 
-## 🔒 Advanced Input Validation & Attack Prevention
+### 🎓 What This Guide Covers
 
-### 🛡️ Comprehensive Validation Framework
+**📍 Prerequisites**: Complete understanding of [Authentication & Authorization](/docs/03_intermediate/04-authentication-authorization)
 
-This implementation demonstrates enterprise-grade input validation that prevents multiple attack vectors while maintaining usability:
+| Security Layer | Fortress Analogy | Threat Prevention | Complexity |
+|----------------|------------------|-------------------|------------|
+| **🌊 Input Fortification** | Advanced moat systems | Injection attacks, XSS | ⭐⭐⭐ |
+| **🏹 Advanced Rate Defense** | Watchtower archers | DDoS, brute force | ⭐⭐⭐⭐ |
+| **🔐 Data Vault Protection** | Royal treasure security | Data breaches, privacy violations | ⭐⭐⭐⭐⭐ |
+| **📊 Threat Intelligence** | Spy networks | Advanced persistent threats | ⭐⭐⭐⭐⭐ |
+
+## 🌊 Advanced Moat Construction (Input Validation Beyond Basic Auth)
+
+### 🐊 The Crocodile-Infested Moat System
+
+**Fortress Analogy**: While your kingdom gates (authentication) verify who people are, your advanced moat system inspects every single item they're carrying to ensure nothing dangerous enters your fortress.
+
+**What we're building**: Multi-layer input defenses that catch sophisticated attacks before they reach your authenticated endpoints.
+
+Think of input validation like having trained crocodiles in your moat - they can distinguish between harmless fish and dangerous intruders, stopping threats that basic guards might miss!
+
+#### 🛡️ The Advanced Fortress Input Scanner
 
 ```python
-from fastapi import FastAPI, HTTPException, Query, Body
+# 🌊 Import the Moat Defense Arsenal (beyond basic auth tools)
+from fastapi import FastAPI, HTTPException, Query, Body, Request
 from pydantic import BaseModel, Field, validator, EmailStr
-from typing import Optional, List, Dict, Pattern
+from typing import Optional, List, Dict, Pattern, Union
 import re
 import html
 from urllib.parse import urlparse
 import bleach
+import time
+from datetime import datetime
 
-class SecureUserInput(BaseModel):
+class FortressSecureInput(BaseModel):
     """
-    🛡️ Enterprise-grade secure user input model
+    🐊 Advanced crocodile-powered input validation for fortress protection
     
-    Security Features:
-    - Multi-layer validation (format, length, content)
-    - XSS prevention through sanitization
-    - SQL injection prevention via parameterization
-    - Business rule enforcement
-    - Data integrity checks
+    Fortress Security Features:
+    - Multi-species crocodile detection (various attack types)
+    - Toxic substance neutralization (XSS prevention)
+    - Trojan horse inspection (injection prevention) 
+    - Siege equipment detection (DoS prevention)
+    - Royal decree compliance (business rules)
+    - Treasure authenticity verification (data integrity)
+    
+    🏰 Analogy: Each field is like a different entrance to your fortress,
+    each with specialized guards trained to detect specific threats.
     """
     
+    # 🏷️ Royal Name Badge (Username validation)
     username: str = Field(
         ..., 
         min_length=3, 
         max_length=30,
-        regex=r"^[a-zA-Z0-9_-]+$",  # Prevents injection via allowed characters
-        description="Username: alphanumeric, underscore, hyphen only"
+        regex=r"^[a-zA-Z0-9_-]+$",  # Only allow safe characters (no injection symbols)
+        description="🏷️ Royal name badge: letters, numbers, underscore, hyphen only"
     )
     
-    email: EmailStr = Field(..., description="Valid email address")  # Built-in email validation
-    
-    password: str = Field(
-        ...,
-        min_length=8,
-        max_length=128,  # Prevents DoS via extremely long passwords
-        description="Password: minimum 8 characters with complexity requirements"
+    # 📧 Royal Messenger Address (Email validation)
+    email: EmailStr = Field(
+        ..., 
+        description="📧 Royal messenger address with built-in authenticity checking"
     )
     
-    full_name: str = Field(
-        ...,
-        min_length=1,
-        max_length=100,
-        description="Full name"
-    )
-    
-    website: Optional[str] = Field(
-        None,
-        max_length=200,
-        description="Website URL"
-    )
-    
+    # 🗣️ Public Proclamation (Bio/description with HTML filtering)
     bio: Optional[str] = Field(
         None,
         max_length=500,
-        description="User biography"
+        description="🗣️ Public proclamation (bio) - safe HTML allowed"
     )
     
+    # 🌐 Allied Castle Website (URL validation)
+    website: Optional[str] = Field(
+        None,
+        max_length=200,
+        description="🌐 Allied castle website URL"
+    )
+    
+    # 🎂 Noble Age (Business logic validation)
     age: Optional[int] = Field(
         None,
-        ge=13,
-        le=120,
-        description="Age: 13-120"
+        ge=13,    # Minimum age for account creation
+        le=120,   # Maximum reasonable age
+        description="🎂 Noble age: 13-120 years"
     )
     
-    tags: List[str] = Field(
+    # 🏷️ Royal Tags (Array validation and sanitization)
+    interests: List[str] = Field(
         default=[],
         max_items=10,
-        description="User tags"
+        description="🏷️ Royal interests and skills (max 10)"
     )
     
-    metadata: Optional[Dict[str, str]] = Field(
+    # 📊 Noble Metadata (Dictionary validation)
+    preferences: Optional[Dict[str, Union[str, int, bool]]] = Field(
         None,
-        description="Additional metadata"
+        description="📊 Noble preferences and settings"
     )
     
-    @validator('password')
-    def validate_password_strength(cls, v):
-        """
-        🔒 Advanced password strength validation
-        
-        Checks for:
-        - Character complexity (uppercase, lowercase, digits, symbols)
-        - Common weak patterns and dictionary words
-        - Repeated character sequences
-        - Keyboard patterns (qwerty, 123456)
-        """
-        if not re.search(r'[A-Z]', v):
-            raise ValueError('Password must contain at least one uppercase letter')
-        if not re.search(r'[a-z]', v):
-            raise ValueError('Password must contain at least one lowercase letter')
-        if not re.search(r'[0-9]', v):
-            raise ValueError('Password must contain at least one digit')
-        if not re.search(r'[!@#$%^&*(),.?":{}|<>]', v):
-            raise ValueError('Password must contain at least one special character')
-        
-        # 🚫 Check for common weak patterns
-        weak_patterns = [
-            r'123456', r'password', r'qwerty', r'admin',
-            r'(.)\1{2,}',  # Repeated characters (aaa, 111)
-            r'abc', r'xyz',  # Sequential patterns
-        ]
-        for pattern in weak_patterns:
-            if re.search(pattern, v.lower()):
-                raise ValueError('Password contains weak patterns')
-        
-        return v
-    
-    @validator('full_name')
-    def sanitize_full_name(cls, v):
-        """Sanitize full name to prevent XSS"""
-        if not v:
-            return v
-        
-        # Remove HTML tags and escape special characters
-        sanitized = html.escape(v.strip())
-        
-        # Only allow letters, spaces, apostrophes, and hyphens
-        if not re.match(r"^[a-zA-Z\s'\-\.]+$", sanitized):
-            raise ValueError('Full name contains invalid characters')
-        
-        return sanitized
-    
-    @validator('website')
-    def validate_website_url(cls, v):
-        """Validate and sanitize website URL"""
-        if not v:
-            return v
-        
-        try:
-            parsed = urlparse(v)
-            
-            # Ensure scheme is http or https
-            if parsed.scheme not in ['http', 'https']:
-                raise ValueError('Website URL must use http or https')
-            
-            # Basic domain validation
-            if not parsed.netloc:
-                raise ValueError('Invalid website URL')
-            
-            # Prevent localhost and private IPs in production
-            forbidden_domains = ['localhost', '127.0.0.1', '0.0.0.0']
-            if any(domain in parsed.netloc.lower() for domain in forbidden_domains):
-                raise ValueError('Local URLs not allowed')
-            
-            return v
-        except Exception:
-            raise ValueError('Invalid website URL format')
+    # 🐊 Advanced Crocodile Validators (Specialized threat detection)
     
     @validator('bio')
-    def sanitize_bio(cls, v):
-        """Sanitize bio content"""
+    def fortress_bio_inspector(cls, v):
+        """
+        🗣️ Royal Proclamation Safety Inspector
+        
+        Fortress Analogy: Like having a royal censor review all public announcements
+        to ensure they don't contain dangerous magic spells (XSS) or inflammatory
+        language that could incite rebellion.
+        
+        Advanced Protection:
+        - Removes dangerous HTML/JS (like disarming hidden weapons)
+        - Allows safe formatting (like permitting ceremonial banners)
+        - Prevents social engineering attacks
+        """
         if not v:
             return v
         
-        # Allow basic HTML tags but sanitize
-        allowed_tags = ['b', 'i', 'em', 'strong', 'a', 'br']
-        allowed_attributes = {'a': ['href']}
+        # 🔍 Inspect for dangerous magic spells (XSS attempts)
+        dangerous_patterns = [
+            r'<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>',  # Script tags
+            r'javascript:',     # JavaScript URLs
+            r'on\w+\s*=',      # Event handlers (onclick, onload, etc.)
+            r'data:.*base64',   # Base64 data URLs (often malicious)
+            r'vbscript:',      # VBScript URLs
+        ]
         
-        sanitized = bleach.clean(
+        for pattern in dangerous_patterns:
+            if re.search(pattern, v.lower()):
+                raise ValueError(f'🚫 Dangerous magic detected in proclamation! Pattern blocked.')
+        
+        # ✨ Allow safe royal formatting (basic HTML for announcements)
+        allowed_tags = ['b', 'i', 'em', 'strong', 'u', 'br', 'p']
+        allowed_attributes = {}  # No attributes allowed for maximum safety
+        
+        cleaned_bio = bleach.clean(
             v,
             tags=allowed_tags,
             attributes=allowed_attributes,
-            strip=True
+            strip=True  # Remove, don't escape, forbidden tags
         )
         
-        return sanitized.strip()
+        return cleaned_bio.strip()
     
-    @validator('tags')
-    def validate_tags(cls, v):
-        """Validate and sanitize tags"""
+    @validator('website')
+    def fortress_url_inspector(cls, v):
+        """
+        🌐 Allied Castle Website Verification
+        
+        Fortress Analogy: Like sending royal scouts to verify that a claimed
+        allied castle actually exists and isn't a bandit trap designed to
+        lure your citizens into ambushes.
+        
+        Advanced Protection:
+        - SSRF (Server-Side Request Forgery) prevention
+        - Malicious domain detection
+        - Protocol restriction enforcement
+        """
+        if not v:
+            return v
+        
+        try:
+            # 🏰 Parse the castle location (URL parsing)
+            parsed_castle = urlparse(v.strip())
+            
+            # 🛡️ Only allow trustworthy travel routes (http/https)
+            if parsed_castle.scheme not in ['http', 'https']:
+                raise ValueError('🚫 Only HTTP and HTTPS routes to allied castles are permitted!')
+            
+            # 🚨 Check for castle existence (basic domain validation)
+            if not parsed_castle.netloc:
+                raise ValueError('🏰 Invalid castle location - no domain specified!')
+            
+            # 🕵️ Detect bandit hideouts (dangerous domains)
+            dangerous_domains = [
+                'localhost', '127.0.0.1', '0.0.0.0',     # Local addresses
+                '10.', '172.16.', '192.168.',             # Private networks
+                'bit.ly', 'tinyurl.com', 't.co',         # URL shorteners (can hide malicious sites)
+            ]
+            
+            castle_location = parsed_castle.netloc.lower()
+            for bandit_hideout in dangerous_domains:
+                if bandit_hideout in castle_location:
+                    raise ValueError(f'🚫 Suspected bandit hideout detected: {bandit_hideout}')
+            
+            return v.strip()
+            
+        except Exception as e:
+            if "Suspected bandit hideout" in str(e) or "Only HTTP" in str(e):
+                raise e  # Re-raise our custom validation errors
+            raise ValueError('🏰 Invalid castle location format!')
+    
+    @validator('interests')
+    def fortress_interests_curator(cls, v):
+        """
+        🏷️ Royal Interests Curator
+        
+        Fortress Analogy: Like a royal librarian who catalogs the skills and
+        interests of castle inhabitants, ensuring each entry is properly
+        categorized and free from suspicious or inappropriate content.
+        """
         if not v:
             return []
         
-        sanitized_tags = []
-        for tag in v:
-            # Clean and validate each tag
-            clean_tag = re.sub(r'[^a-zA-Z0-9_-]', '', tag.strip().lower())
-            if len(clean_tag) >= 2 and len(clean_tag) <= 20:
-                sanitized_tags.append(clean_tag)
+        curated_interests = []
+        for interest in v[:10]:  # Limit to 10 interests maximum
+            
+            # 🧹 Clean the interest entry (remove suspicious content)
+            clean_interest = re.sub(r'[<>"\']', '', interest.strip())
+            clean_interest = html.escape(clean_interest)
+            
+            # 📏 Validate interest format (reasonable length, safe characters)
+            if len(clean_interest) >= 2 and len(clean_interest) <= 50:
+                # 🔍 Check for suspicious patterns
+                if not re.search(r'[<>{}()[\]\\|`~]', clean_interest):
+                    curated_interests.append(clean_interest.lower())
         
-        # Remove duplicates while preserving order
-        return list(dict.fromkeys(sanitized_tags))
+        # 🗂️ Remove duplicates while preserving order
+        return list(dict.fromkeys(curated_interests))
     
-    @validator('metadata')
-    def validate_metadata(cls, v):
-        """Validate metadata dictionary"""
+    @validator('preferences')
+    def fortress_preferences_validator(cls, v):
+        """
+        📊 Noble Preferences Validator
+        
+        Fortress Analogy: Like a royal quartermaster checking personal
+        belongings before they're stored in the castle - ensuring nothing
+        dangerous or inappropriate is kept in the royal chambers.
+        """
         if not v:
             return {}
         
-        # Limit number of metadata fields
-        if len(v) > 10:
-            raise ValueError('Too many metadata fields (max 10)')
+        # 🔢 Limit number of preferences (prevent DoS via massive objects)
+        if len(v) > 20:
+            raise ValueError('🏰 Too many preferences! Noble quarters can only hold 20 items maximum.')
         
-        validated_metadata = {}
+        validated_preferences = {}
         for key, value in v.items():
-            # Validate keys
-            if not re.match(r'^[a-zA-Z0-9_-]+$', key) or len(key) > 50:
-                raise ValueError(f'Invalid metadata key: {key}. Keys must be alphanumeric, underscore, or hyphen, and max 50 chars.')
             
-            # Validate values (e.g., ensure they are strings and within a certain length)
-            if not isinstance(value, str) or len(value) > 255:
-                raise ValueError(f'Invalid metadata value for key "{key}". Values must be strings and max 255 chars.')
+            # 🗝️ Validate preference keys (like room labels)
+            if not re.match(r'^[a-zA-Z0-9_-]{1,30}$', str(key)):
+                raise ValueError(f'🚫 Invalid preference key: {key}. Use only letters, numbers, underscore, or hyphen.')
             
-            validated_metadata[key] = html.escape(value.strip()) # Sanitize and store
+            # 💎 Validate preference values (ensure they're safe to store)
+            if isinstance(value, str):
+                if len(value) > 200:
+                    raise ValueError(f'🚫 Preference "{key}" value too long (max 200 characters)')
+                # Escape HTML in string values
+                validated_preferences[key] = html.escape(value.strip())
+            elif isinstance(value, (int, bool)):
+                validated_preferences[key] = value
+            else:
+                raise ValueError(f'🚫 Invalid preference type for "{key}". Only strings, numbers, or booleans allowed.')
         
-        return validated_metadata
+        return validated_preferences
 
 ```
 
-### 🎯 Security Validation Patterns Summary
+### ✅ Advanced Moat Defense Summary
 
-| Validation Type | Attack Prevention | Implementation |
-|----------------|-------------------|----------------|
-| **Regex Patterns** | Injection attacks | `regex=r"^[a-zA-Z0-9_-]+$"` |
-| **Length Limits** | Buffer overflow/DoS | `min_length=3, max_length=30` |
-| **Content Sanitization** | XSS attacks | `html.escape()`, `bleach.clean()` |
-| **URL Validation** | SSRF attacks | `urlparse()` + domain checking |
-| **Business Rules** | Logic vulnerabilities | Custom validators |
+Here's what our crocodile-powered validation system protects against:
 
-## 🔐 Advanced Authentication Security
-
-### 🛡️ Multi-Factor Authentication Implementation
-
-> 💡 **MFA is like a bank vault**: Even if someone has your key (password), they still need the time-locked combination (TOTP) and biometric scan (device verification) to get inside.
-
-```python
-from fastapi import FastAPI, Depends, HTTPException, status
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-import pyotp
-import qrcode
-from io import BytesIO
-import base64
-from datetime import datetime, timedelta
-import secrets
-
-class MFAManager:
-    """
-    🔒 Multi-Factor Authentication manager for enterprise security
+```mermaid
+graph LR
+    A[🌐 Malicious Input] --> B{🐊 Moat Crocodiles}
+    B -->|XSS Attack| C[🗣️ Bio Inspector<br/>Blocks Scripts]
+    B -->|SSRF Attack| D[🌐 URL Inspector<br/>Blocks Bad Domains]
+    B -->|DoS Attack| E[📊 Size Validator<br/>Limits Data Volume]
+    B -->|Injection| F[🏷️ Pattern Matcher<br/>Safe Characters Only]
     
-    Features:
-    - TOTP (Time-based One-Time Password) support
-    - Backup codes generation
-    - Rate limiting for MFA attempts
-    - Device registration and trust
-    """
+    C --> G[✅ Safe Content]
+    D --> G
+    E --> G
+    F --> G
     
-    def __init__(self):
-        self.failed_attempts = {}  # Track failed attempts per user
-        self.trusted_devices = {}  # Track trusted devices
-        self.backup_codes = {}     # User backup codes
-    
-    def generate_secret(self, user_id: int) -> str:
-        """Generate TOTP secret for user"""
-        return pyotp.random_base32()
-    
-    def generate_qr_code(self, user_email: str, secret: str, issuer: str = "FastAPI App") -> str:
-        """
-        Generate QR code for TOTP setup
-        
-        🔑 Security: QR codes should be generated server-side and transmitted securely
-        """
-        totp_uri = pyotp.totp.TOTP(secret).provisioning_uri(
-            name=user_email,
-            issuer_name=issuer
-        )
-        
-        # Generate QR code
-        qr = qrcode.QRCode(version=1, box_size=10, border=5)
-        qr.add_data(totp_uri)
-        qr.make(fit=True)
-        
-        img = qr.make_image(fill_color="black", back_color="white")
-        
-        # Convert to base64 for API response
-        buffer = BytesIO()
-        img.save(buffer, format='PNG')
-        img_base64 = base64.b64encode(buffer.getvalue()).decode()
-        
-        return f"data:image/png;base64,{img_base64}"
-    
-    def verify_totp(self, user_id: int, secret: str, token: str) -> bool:
-        """
-        Verify TOTP token with rate limiting
-        
-        🛡️ Security measures:
-        - Rate limiting prevents brute force attacks
-        - Time window validation prevents replay attacks
-        - Failed attempt tracking for security monitoring
-        """
-        # Check rate limiting
-        current_time = datetime.utcnow()
-        user_attempts = self.failed_attempts.get(user_id, [])
-        
-        # Remove attempts older than 1 hour
-        user_attempts = [
-            attempt for attempt in user_attempts 
-            if current_time - attempt < timedelta(hours=1)
-        ]
-        
-        # Block if too many failed attempts
-        if len(user_attempts) >= 5:
-            raise HTTPException(
-                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                detail="Too many failed MFA attempts. Try again later."
-            )
-        
-        # Verify TOTP
-        totp = pyotp.TOTP(secret)
-        is_valid = totp.verify(token, valid_window=1)  # Allow 1 step tolerance
-        
-        if not is_valid:
-            # Record failed attempt
-            user_attempts.append(current_time)
-            self.failed_attempts[user_id] = user_attempts
-            return False
-        
-        # Clear failed attempts on success
-        self.failed_attempts.pop(user_id, None)
-        return True
-    
-    def generate_backup_codes(self, user_id: int, count: int = 10) -> List[str]:
-        """
-        Generate backup codes for account recovery
-        
-        🔑 Security: Backup codes are one-time use and should be stored hashed
-        """
-        codes = []
-        for _ in range(count):
-            # Generate 8-character alphanumeric code
-            code = ''.join(secrets.choice('ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789') for _ in range(8))
-            codes.append(code)
-        
-        # In production: hash these codes before storing
-        # hashed_codes = [pwd_context.hash(code) for code in codes]
-        self.backup_codes[user_id] = codes  # Store plaintext for demo
-        
-        return codes
-    
-    def verify_backup_code(self, user_id: int, code: str) -> bool:
-        """Verify and consume backup code"""
-        user_codes = self.backup_codes.get(user_id, [])
-        
-        if code in user_codes:
-            # Remove used backup code
-            user_codes.remove(code)
-            self.backup_codes[user_id] = user_codes
-            return True
-        
-        return False
-
-# Initialize MFA manager
-mfa_manager = MFAManager()
-
-# Enhanced authentication with MFA
-async def verify_mfa_token(
-    credentials: HTTPAuthorizationCredentials = Security(HTTPBearer()),
-    mfa_token: str = Query(..., description="6-digit TOTP code")
-) -> User:
-    """
-    Verify both JWT token and MFA code
-    
-    🔒 Two-factor authentication flow:
-    1. Verify JWT token (something you have)
-    2. Verify TOTP code (something you know)
-    3. Check device trust (something you are)
-    """
-    # First verify JWT token
-    token_data = decode_token(credentials.credentials)
-    user = fake_users_db.get(token_data.username)
-    
-    if not user:
-        raise HTTPException(status_code=401, detail="User not found")
-    
-    # Check if user has MFA enabled
-    user_secret = user.get('mfa_secret')
-    if not user_secret:
-        raise HTTPException(status_code=400, detail="MFA not enabled for user")
-    
-    # Verify MFA token
-    if not mfa_manager.verify_totp(user['id'], user_secret, mfa_token):
-        raise HTTPException(status_code=401, detail="Invalid MFA code")
-    
-    return User(**user)
-
-@app.post("/auth/setup-mfa")
-async def setup_mfa(current_user: User = Depends(get_current_user_flexible)):
-    """Setup MFA for user account"""
-    secret = mfa_manager.generate_secret(current_user.id)
-    qr_code = mfa_manager.generate_qr_code(current_user.email, secret)
-    backup_codes = mfa_manager.generate_backup_codes(current_user.id)
-    
-    # In production: save secret to database
-    fake_users_db[current_user.username]['mfa_secret'] = secret
-    
-    return {
-        "message": "MFA setup initiated",
-        "qr_code": qr_code,
-        "backup_codes": backup_codes,
-        "setup_instructions": [
-            "1. Scan QR code with authenticator app",
-            "2. Enter 6-digit code to verify setup",
-            "3. Save backup codes securely"
-        ]
-    }
-
-@app.post("/auth/verify-mfa-setup")
-async def verify_mfa_setup(
-    totp_code: str,
-    current_user: User = Depends(get_current_user_flexible)
-):
-    """Verify and enable MFA for user"""
-    user_secret = fake_users_db[current_user.username].get('mfa_secret')
-    
-    if not user_secret:
-        raise HTTPException(status_code=400, detail="MFA setup not initiated")
-    
-    if mfa_manager.verify_totp(current_user.id, user_secret, totp_code):
-        # Enable MFA for user
-        fake_users_db[current_user.username]['mfa_enabled'] = True
-        return {"message": "MFA enabled successfully"}
-    else:
-        raise HTTPException(status_code=400, detail="Invalid TOTP code")
+    style A fill:#ffebee
+    style G fill:#e8f5e8
 ```
 
-## 🚨 Advanced Threat Protection
+| Crocodile Type | Threat Prevented | Fortress Protection Method |
+|----------------|------------------|---------------------------|
+| **🔍 Pattern Crocodiles** | SQL/NoSQL injection | Regex + character filtering |
+| **📏 Size Crocodiles** | DoS via large payloads | Length limits + object size caps |
+| **🧹 Cleaning Crocodiles** | XSS attacks | HTML sanitization + escaping |
+| **🌐 Scout Crocodiles** | SSRF attacks | URL parsing + domain validation |
+| **🏷️ Curator Crocodiles** | Data poisoning | Business rule enforcement |
 
-### 🛡️ Rate Limiting & DDoS Protection
+💡 **Key Insight**: This input validation works *alongside* your [authentication system](/docs/03_intermediate/04-authentication-authorization), not replacing it. Even authenticated users can accidentally or maliciously submit dangerous data!
+
+## 🏹 Advanced Watchtower Defense (Enhanced Rate Limiting)
+
+### 🎯 Archer Tower Coordination System
+
+**Fortress Analogy**: Your basic authentication includes simple rate limiting, but now we're building sophisticated watchtowers with expert archers who can distinguish between friendly merchants, enemy scouts, and full siege armies.
+
+**What we're building**: Multi-layered rate limiting that adapts to different types of threats and user behaviors.
+
+#### 🏹 The Elite Archer Squadron
 
 ```python
-from collections import defaultdict
+# 🏹 Import Advanced Watchtower Arsenal
+from collections import defaultdict, deque
 import asyncio
-from fastapi import Request, HTTPException
+from fastapi import Request, HTTPException, Depends
 import ipaddress
+import time
+from typing import Dict, List, Optional
+from enum import Enum
 
-class AdvancedRateLimiter:
+class ThreatLevel(Enum):
+    """🎯 Threat classification system for archer coordination"""
+    FRIENDLY = "friendly"      # 🤝 Known good users
+    NEUTRAL = "neutral"        # 😐 Unknown/new users  
+    SUSPICIOUS = "suspicious"  # 🔍 Potential threats
+    HOSTILE = "hostile"        # ⚔️ Confirmed attackers
+
+class AdvancedArcherTowers:
     """
-    🚫 Enterprise-grade rate limiting with multiple strategies
+    🏹 Elite archer tower coordination system for fortress defense
     
-    Features:
-    - Multiple rate limiting algorithms
-    - IP-based and user-based limits
-    - Adaptive thresholds based on behavior
-    - Distributed rate limiting support
+    Fortress Features:
+    - Multi-tower communication (distributed rate limiting)
+    - Archer specialization (different limits per endpoint type)
+    - Threat escalation (adaptive response to behavior)
+    - Friendly fire prevention (whitelist protection)
+    - Siege detection (coordinated attack identification)
     """
     
     def __init__(self):
-        self.ip_requests = defaultdict(list)
-        self.user_requests = defaultdict(list)
-        self.suspicious_ips = set()
-        self.whitelist = {
-            ipaddress.ip_network("127.0.0.0/8"),   # localhost
-            ipaddress.ip_network("10.0.0.0/8"),    # private networks
-            ipaddress.ip_network("172.16.0.0/12"),
-            ipaddress.ip_network("192.168.0.0/16")
+        # 📊 Archer tower intelligence gathering
+        self.visitor_requests = defaultdict(deque)  # Recent request timestamps per visitor
+        self.visitor_threat_level = defaultdict(lambda: ThreatLevel.NEUTRAL)
+        self.siege_patterns = defaultdict(list)     # Coordinated attack detection
+        
+        # 🏰 Fortress allies (whitelist)
+        self.allied_networks = {
+            ipaddress.ip_network("127.0.0.0/8"),    # Localhost allies
+            ipaddress.ip_network("10.0.0.0/8"),     # Internal castle network
+            ipaddress.ip_network("172.16.0.0/12"),  # Private wing
+            ipaddress.ip_network("192.168.0.0/16"), # Noble quarters
+        }
+        
+        # 🎯 Archer specialization (different limits for different targets)
+        self.tower_configurations = {
+            "authentication": {"limit": 5, "window": 300},    # 5 attempts per 5 minutes
+            "data_heavy": {"limit": 100, "window": 3600},     # 100 requests per hour
+            "public": {"limit": 1000, "window": 3600},        # 1000 requests per hour
+            "admin": {"limit": 50, "window": 3600},           # 50 admin actions per hour
         }
     
-    def is_whitelisted(self, ip: str) -> bool:
-        """Check if IP is in whitelist"""
+    def is_allied_visitor(self, ip: str) -> bool:
+        """🤝 Check if visitor is from allied territory"""
         try:
-            ip_obj = ipaddress.ip_address(ip)
-            return any(ip_obj in network for network in self.whitelist)
+            visitor_location = ipaddress.ip_address(ip)
+            return any(visitor_location in network for network in self.allied_networks)
         except ValueError:
-            return False
+            return False  # Invalid IP format = not allied
     
-    def sliding_window_check(
-        self, 
-        identifier: str, 
-        requests_list: list, 
-        max_requests: int, 
-        window_seconds: int
-    ) -> bool:
-        """Sliding window rate limiting algorithm"""
-        current_time = time.time()
-        window_start = current_time - window_seconds
-        
-        # Remove old requests
-        requests_list[:] = [req_time for req_time in requests_list if req_time > window_start]
-        
-        # Check if limit exceeded
-        if len(requests_list) >= max_requests:
-            return False
-        
-        # Record current request
-        requests_list.append(current_time)
-        return True
-    
-    async def check_rate_limit(self, request: Request, user_id: Optional[int] = None):
+    def assess_threat_level(self, visitor_id: str, endpoint_type: str) -> ThreatLevel:
         """
-        Comprehensive rate limiting check
+        🔍 Assess visitor threat level based on behavior patterns
         
-        🛡️ Multi-layer protection:
-        - IP-based limits for anonymous users
-        - User-based limits for authenticated users  
-        - Adaptive limits for suspicious behavior
-        - Geographic restrictions
+        Fortress Analogy: Like having scouts report on visitor behavior
+        to determine if they're friendly traders, neutral travelers,
+        suspicious scouts, or hostile invaders.
         """
-        client_ip = request.client.host if request.client else "unknown"
+        current_level = self.visitor_threat_level[visitor_id]
         
-        # Skip rate limiting for whitelisted IPs
-        if self.is_whitelisted(client_ip):
-            return
+        # 📈 Escalate threat level based on suspicious patterns
+        recent_requests = len(self.visitor_requests[visitor_id])
         
-        # Determine rate limits based on user type
-        if user_id:
-            # Authenticated user limits
-            max_requests = 1000  # Higher limit for authenticated users
-            identifier = f"user_{user_id}"
-            requests_list = self.user_requests[identifier]
+        if recent_requests > 500:  # Siege-level activity
+            return ThreatLevel.HOSTILE
+        elif recent_requests > 100:  # Heavy reconnaissance
+            return ThreatLevel.SUSPICIOUS
+        elif current_level == ThreatLevel.FRIENDLY:
+            return ThreatLevel.FRIENDLY  # Maintain trust for proven allies
         else:
-            # Anonymous user limits
-            max_requests = 100   # Lower limit for anonymous users
-            identifier = f"ip_{client_ip}"
-            requests_list = self.ip_requests[identifier]
+            return ThreatLevel.NEUTRAL
+    
+    def calculate_adaptive_limits(self, threat_level: ThreatLevel, base_config: Dict) -> Dict:
+        """
+        🎯 Adjust archer response based on threat assessment
         
-        # Reduce limits for suspicious IPs
-        if client_ip in self.suspicious_ips:
-            max_requests = max_requests // 10  # Drastically reduce limit
+        Fortress Analogy: Like adjusting arrow type and firing rate
+        based on whether you're facing friendly merchants or enemy cavalry.
+        """
+        multipliers = {
+            ThreatLevel.FRIENDLY: 2.0,    # Double limits for trusted allies
+            ThreatLevel.NEUTRAL: 1.0,     # Standard fortress defenses
+            ThreatLevel.SUSPICIOUS: 0.5,  # Heightened vigilance
+            ThreatLevel.HOSTILE: 0.1,     # Maximum defensive posture
+        }
         
-        # Apply sliding window rate limiting
-        window_seconds = 3600  # 1 hour window
+        multiplier = multipliers[threat_level]
+        return {
+            "limit": int(base_config["limit"] * multiplier),
+            "window": base_config["window"]
+        }
+    
+    def detect_coordinated_siege(self, visitor_pattern: str) -> bool:
+        """
+        ⚔️ Detect coordinated siege attacks (distributed DDoS)
         
-        if not self.sliding_window_check(identifier, requests_list, max_requests, window_seconds):
-            # Mark IP as suspicious after rate limit violation
-            if not user_id:  # Only mark anonymous IPs as suspicious
-                self.suspicious_ips.add(client_ip)
+        Fortress Analogy: Like watchtower guards communicating to spot
+        if multiple suspicious groups are approaching from different
+        directions at the same time.
+        """
+        # Pattern could be IP subnet, user-agent, or behavioral fingerprint
+        current_time = time.time()
+        self.siege_patterns[visitor_pattern].append(current_time)
+        
+        # Remove old siege indicators (older than 10 minutes)
+        cutoff_time = current_time - 600
+        self.siege_patterns[visitor_pattern] = [
+            t for t in self.siege_patterns[visitor_pattern] if t > cutoff_time
+        ]
+        
+        # Detect siege: too many similar patterns in short time
+        return len(self.siege_patterns[visitor_pattern]) > 20
+    
+    async def check_archer_defenses(
+        self, 
+        request: Request, 
+        endpoint_type: str = "public",
+        current_user: Optional[dict] = None
+    ):
+        """
+        🏹 Coordinate archer tower response to incoming visitor
+        
+        Fortress Analogy: Like the master archer coordinating all towers
+        to respond appropriately to each approaching visitor based on
+        their identity, behavior, and current threat assessment.
+        """
+        # 🗺️ Identify visitor location and pattern
+        visitor_ip = request.client.host if request.client else "unknown"
+        user_agent = request.headers.get("user-agent", "unknown")
+        visitor_id = f"{visitor_ip}:{user_agent[:50]}"  # Create visitor fingerprint
+        
+        # 🤝 Skip defenses for allied visitors (but still log for intelligence)
+        if self.is_allied_visitor(visitor_ip):
+            return  # Allow allied forces free passage
+        
+        # 🔍 Assess current threat level
+        threat_level = self.assess_threat_level(visitor_id, endpoint_type)
+        
+        # 🎯 Get appropriate archer configuration
+        base_config = self.tower_configurations.get(endpoint_type, 
+                                                   self.tower_configurations["public"])
+        adaptive_config = self.calculate_adaptive_limits(threat_level, base_config)
+        
+        # ⚔️ Check for coordinated siege attacks
+        siege_pattern = f"{visitor_ip.split('.')[0]}.{visitor_ip.split('.')[1]}"  # Subnet pattern
+        if self.detect_coordinated_siege(siege_pattern):
+            # 🚨 Siege detected - maximum defensive response
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail={
+                    "error": "SIEGE_DETECTED",
+                    "message": "🏰 Coordinated siege attack detected. All towers are responding with maximum defensive posture.",
+                    "retry_after": 3600,
+                    "threat_level": "SIEGE"
+                },
+                headers={"Retry-After": "3600"}
+            )
+        
+        # 📊 Record visitor activity (sliding window)
+        current_time = time.time()
+        visitor_queue = self.visitor_requests[visitor_id]
+        
+        # 🧹 Clean old requests outside the time window
+        window_start = current_time - adaptive_config["window"]
+        while visitor_queue and visitor_queue[0] < window_start:
+            visitor_queue.popleft()
+        
+        # 🛡️ Check if visitor exceeds limits
+        if len(visitor_queue) >= adaptive_config["limit"]:
+            # 📈 Escalate threat level for rate limit violations
+            if threat_level == ThreatLevel.NEUTRAL:
+                self.visitor_threat_level[visitor_id] = ThreatLevel.SUSPICIOUS
+            elif threat_level == ThreatLevel.SUSPICIOUS:
+                self.visitor_threat_level[visitor_id] = ThreatLevel.HOSTILE
             
             raise HTTPException(
                 status_code=status.HTTP_429_TOO_MANY_REQUESTS,
                 detail={
-                    "error": "RATE_LIMIT_EXCEEDED",
-                    "message": f"Rate limit exceeded. Max {max_requests} requests per hour.",
-                    "retry_after": 3600,
-                    "current_requests": len(requests_list)
+                    "error": "ARCHER_DEFENSE_ACTIVATED",
+                    "message": f"🏹 Watchtower archers have detected excessive activity. Limit: {adaptive_config['limit']} requests per {adaptive_config['window']} seconds.",
+                    "current_requests": len(visitor_queue),
+                    "threat_level": threat_level.value,
+                    "retry_after": adaptive_config["window"]
                 },
-                headers={"Retry-After": "3600"}
+                headers={"Retry-After": str(adaptive_config["window"])}
             )
+        
+        # ✅ Allow passage and record visit
+        visitor_queue.append(current_time)
+        
+        # 🌟 Promote trusted users who consistently behave well
+        if (len(visitor_queue) < adaptive_config["limit"] * 0.1 and  # Very light usage
+            current_user and                                          # Authenticated
+            threat_level == ThreatLevel.NEUTRAL):                    # Not flagged
+            self.visitor_threat_level[visitor_id] = ThreatLevel.FRIENDLY
 
-# Global rate limiter instance
-rate_limiter = AdvancedRateLimiter()
+# 🏰 Initialize fortress archer towers
+fortress_archers = AdvancedArcherTowers()
 
-# Rate limiting dependency
-async def apply_rate_limit(
-    request: Request,
-    current_user: Optional[User] = Depends(get_current_user_flexible)
-):
-    """Apply rate limiting to endpoint"""
-    user_id = current_user.id if current_user else None
-    await rate_limiter.check_rate_limit(request, user_id)
+# 🎯 Specialized archer dependencies for different fortress areas
+async def public_area_defense(request: Request):
+    """🌍 Public courtyard defense (light protection)"""
+    await fortress_archers.check_archer_defenses(request, "public")
+
+async def authentication_area_defense(request: Request):
+    """🚪 Gate area defense (strict protection)"""
+    await fortress_archers.check_archer_defenses(request, "authentication")
+
+async def admin_area_defense(request: Request, current_user: dict = Depends(lambda: None)):
+    """👑 Royal chambers defense (maximum protection)"""
+    await fortress_archers.check_archer_defenses(request, "admin", current_user)
+
+async def data_heavy_defense(request: Request):
+    """📊 Treasury defense (moderate protection for heavy operations)"""
+    await fortress_archers.check_archer_defenses(request, "data_heavy")
 ```
 
-## 🔒 Data Protection & Privacy
+### ✅ Advanced Archer Tower Benefits
 
-### 🛡️ Sensitive Data Handling
+Here's how the elite archer system enhances your basic rate limiting:
+
+```mermaid
+graph TB
+    A[🌐 Incoming Visitor] --> B{🤝 Allied Check}
+    B -->|Yes| C[🟢 Free Passage]
+    B -->|No| D{🔍 Threat Assessment}
+    
+    D --> E[😊 Friendly<br/>2x Normal Limits]
+    D --> F[😐 Neutral<br/>Standard Limits] 
+    D --> G[🤔 Suspicious<br/>0.5x Limits]
+    D --> H[😡 Hostile<br/>0.1x Limits]
+    
+    E --> I{⚔️ Siege Detection}
+    F --> I
+    G --> I
+    H --> I
+    
+    I -->|No Siege| J[✅ Apply Adaptive Limits]
+    I -->|Siege Detected| K[🚨 Maximum Defense]
+    
+    style A fill:#e3f2fd
+    style C fill:#e8f5e8
+    style K fill:#ffebee
+```
+
+**🎯 Key Advantages Over Basic Rate Limiting:**
+- **Adaptive Intelligence**: Learns visitor behavior patterns
+- **Threat Escalation**: Automatically adjusts defenses based on risk
+- **Siege Detection**: Identifies coordinated attacks across multiple IPs
+- **Ally Protection**: Never blocks trusted networks
+- **Endpoint Specialization**: Different defenses for different fortress areas
+
+💡 **Production Note**: This system works *alongside* your [authentication rate limiting](/docs/03_intermediate/04-authentication-authorization), providing an additional layer of smart protection!
+
+## 🔐 Royal Vault Protection (Advanced Data Security)
+
+### 💎 The Fortress Treasure Management System
+
+**Fortress Analogy**: Beyond your basic [authentication vault](/docs/03_intermediate/04-authentication-authorization), you need specialized treasure vaults with different security levels, magical protective enchantments, and royal auditors tracking every access.
+
+**What we're building**: Enterprise-grade data protection that goes far beyond password hashing to protect all sensitive data in your kingdom.
+
+#### 🏺 Multi-Vault Treasure Protection System
 
 ```python
+# 🔐 Import Advanced Vault Protection Arsenal
 from cryptography.fernet import Fernet
+from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+from cryptography.hazmat.primitives import hashes
+import base64
 import os
 import json
+import hashlib
+from typing import Dict, List, Optional, Any
+from dataclasses import dataclass
+from enum import Enum
 
-class DataProtectionManager:
+class TreasureClassification(Enum):
+    """💎 Different types of treasures requiring different vault security"""
+    PUBLIC = "public"              # 🌍 Royal announcements (no encryption needed)
+    INTERNAL = "internal"          # 🏰 Castle business (light encryption)
+    CONFIDENTIAL = "confidential"  # 🤫 Secret communications (strong encryption)
+    TOP_SECRET = "top_secret"      # 👑 Royal secrets (maximum encryption)
+
+@dataclass
+class VaultAccess:
+    """📋 Record of treasure vault access for royal auditors"""
+    user_id: int
+    treasure_type: str
+    action: str  # read, write, update, delete
+    classification: TreasureClassification
+    timestamp: str
+    ip_address: str
+    success: bool
+    details: Optional[str] = None
+
+class AdvancedTreasuryVault:
     """
-    🔐 Enterprise data protection and privacy compliance
+    🏺 Royal Treasury Vault Management System
     
-    Features:
-    - Field-level encryption for sensitive data
-    - PII detection and masking
-    - GDPR compliance utilities
-    - Audit trail for data access
+    Fortress Features:
+    - Multi-level encryption (different vault strengths)
+    - Automatic treasure classification
+    - PII detection and protection
+    - GDPR/privacy compliance automation
+    - Royal audit trail (comprehensive logging)
+    - Treasure masking for different access levels
     """
     
-    def __init__(self):
-        # In production: load from environment or key management service
-        self.encryption_key = Fernet.generate_key()
-        self.cipher = Fernet(self.encryption_key)
-        self.audit_log = []
-    
-    def encrypt_field(self, value: str) -> str:
-        """Encrypt sensitive field value"""
-        if not value:
-            return value
+    def __init__(self, master_key: str = None):
+        # 🗝️ Master vault key (in production: use key management service)
+        if not master_key:
+            master_key = os.getenv("VAULT_MASTER_KEY", "fortress-default-key-change-in-production")
         
-        encrypted_bytes = self.cipher.encrypt(value.encode())
-        return encrypted_bytes.decode()
+        # 🔐 Create different strength encryption keys for different vault levels
+        self.vault_keys = self._generate_vault_keys(master_key)
+        self.royal_auditors = []  # Audit trail for compliance
+        
+        # 🕵️ PII detection patterns (for automatic classification)
+        self.pii_patterns = {
+            "email": r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b",
+            "phone": r"(\+\d{1,3}[-.]?)?\(?\d{3}\)?[-.]?\d{3}[-.]?\d{4}",
+            "ssn": r"\b\d{3}-\d{2}-\d{4}\b",
+            "credit_card": r"\b\d{4}[-\s]?\d{4}[-\s]?\d{4}[-\s]?\d{4}\b",
+            "passport": r"\b[A-Z]{1,2}\d{6,9}\b"
+        }
     
-    def decrypt_field(self, encrypted_value: str) -> str:
-        """Decrypt sensitive field value"""
-        if not encrypted_value:
-            return encrypted_value
+    def _generate_vault_keys(self, master_key: str) -> Dict[TreasureClassification, Fernet]:
+        """🔑 Generate different encryption keys for different treasure classifications"""
+        vault_keys = {}
+        
+        for classification in TreasureClassification:
+            # Create unique salt for each vault level
+            salt = hashlib.sha256(f"{master_key}_{classification.value}".encode()).digest()[:16]
+            
+            # Generate key derivation for this vault level
+            kdf = PBKDF2HMAC(
+                algorithm=hashes.SHA256(),
+                length=32,
+                salt=salt,
+                iterations=100000  # Strong key derivation
+            )
+            
+            # Create encryption key for this vault level
+            key = base64.urlsafe_b64encode(kdf.derive(master_key.encode()))
+            vault_keys[classification] = Fernet(key)
+        
+        return vault_keys
+    
+    def detect_treasure_classification(self, data: Any) -> TreasureClassification:
+        """
+        🕵️ Royal Treasure Inspector - Automatically classify data security level
+        
+        Fortress Analogy: Like having a royal appraiser examine each item
+        to determine which vault it belongs in based on its value and sensitivity.
+        """
+        if isinstance(data, dict):
+            data_str = json.dumps(data, default=str).lower()
+        else:
+            data_str = str(data).lower()
+        
+        # 🚨 Check for top secret patterns
+        top_secret_indicators = ["password", "secret", "key", "token", "auth"]
+        if any(indicator in data_str for indicator in top_secret_indicators):
+            return TreasureClassification.TOP_SECRET
+        
+        # 🤫 Check for confidential PII patterns
+        for pii_type, pattern in self.pii_patterns.items():
+            if re.search(pattern, data_str, re.IGNORECASE):
+                return TreasureClassification.CONFIDENTIAL
+        
+        # 🏰 Check for internal business data
+        internal_indicators = ["internal", "private", "restricted", "employee"]
+        if any(indicator in data_str for indicator in internal_indicators):
+            return TreasureClassification.INTERNAL
+        
+        # 🌍 Default to public classification
+        return TreasureClassification.PUBLIC
+    
+    def encrypt_treasure(
+        self, 
+        treasure: Any, 
+        classification: TreasureClassification = None
+    ) -> Dict[str, Any]:
+        """
+        🔐 Secure treasure in appropriate vault
+        
+        Fortress Analogy: Like having specialized locksmiths secure different
+        treasures with the appropriate level of protection based on their value.
+        """
+        if classification is None:
+            classification = self.detect_treasure_classification(treasure)
+        
+        # 🌍 Public treasures don't need encryption
+        if classification == TreasureClassification.PUBLIC:
+            return {
+                "data": treasure,
+                "encrypted": False,
+                "classification": classification.value
+            }
+        
+        # 🔐 Encrypt with appropriate vault-level security
+        treasure_json = json.dumps(treasure, default=str)
+        vault_cipher = self.vault_keys[classification]
+        encrypted_bytes = vault_cipher.encrypt(treasure_json.encode())
+        
+        return {
+            "data": base64.urlsafe_b64encode(encrypted_bytes).decode(),
+            "encrypted": True,
+            "classification": classification.value,
+            "vault_type": f"fortress_vault_{classification.value}"
+        }
+    
+    def decrypt_treasure(self, encrypted_treasure: Dict[str, Any]) -> Any:
+        """
+        🗝️ Retrieve treasure from vault
+        
+        Fortress Analogy: Like using the correct vault key to open
+        the appropriate security level treasure chest.
+        """
+        if not encrypted_treasure.get("encrypted", False):
+            return encrypted_treasure["data"]
+        
+        classification = TreasureClassification(encrypted_treasure["classification"])
+        vault_cipher = self.vault_keys[classification]
         
         try:
-            decrypted_bytes = self.cipher.decrypt(encrypted_value.encode())
-            return decrypted_bytes.decode()
-        except Exception:
-            return "[DECRYPTION_ERROR]"
+            # Decode and decrypt treasure
+            encrypted_bytes = base64.urlsafe_b64decode(encrypted_treasure["data"].encode())
+            decrypted_json = vault_cipher.decrypt(encrypted_bytes).decode()
+            return json.loads(decrypted_json)
+        except Exception as e:
+            return f"[VAULT_ACCESS_ERROR: {str(e)}]"
     
-    def mask_pii(self, value: str, field_type: str) -> str:
+    def mask_treasure_for_display(
+        self, 
+        treasure: Any, 
+        viewer_access_level: str = "user"
+    ) -> Any:
         """
-        Mask PII data for logging/display
+        🎭 Create masked version of treasure for different access levels
         
-        🔒 Privacy protection patterns:
-        - Email: show first char + domain
-        - Phone: show last 4 digits
-        - SSN: show last 4 digits
-        - Credit Card: show last 4 digits
+        Fortress Analogy: Like having different viewing rooms where visitors
+        can see treasures through different levels of protective glass - some
+        show everything clearly, others blur sensitive details.
         """
-        if not value:
-            return value
-        
-        if field_type == "email":
-            if "@" in value:
-                local, domain = value.split("@", 1)
-                return f"{local[0]}***@{domain}"
-            return "***"
-        
-        elif field_type == "phone":
-            return f"***-***-{value[-4:]}" if len(value) >= 4 else "***"
-        
-        elif field_type == "ssn":
-            return f"***-**-{value[-4:]}" if len(value) >= 4 else "***"
-        
-        elif field_type == "credit_card":
-            return f"****-****-****-{value[-4:]}" if len(value) >= 4 else "****"
-        
+        if isinstance(treasure, dict):
+            masked_treasure = {}
+            for key, value in treasure.items():
+                masked_treasure[key] = self._mask_value(value, key, viewer_access_level)
+            return masked_treasure
+        elif isinstance(treasure, list):
+            return [self.mask_treasure_for_display(item, viewer_access_level) for item in treasure]
         else:
-            # Generic masking
-            return f"{value[:2]}***{value[-2:]}" if len(value) > 4 else "***"
+            return self._mask_value(treasure, "unknown", viewer_access_level)
     
-    def log_data_access(self, user_id: int, data_type: str, action: str, record_id: str = None):
-        """Log data access for audit compliance"""
-        self.audit_log.append({
-            "timestamp": datetime.utcnow().isoformat(),
-            "user_id": user_id,
-            "data_type": data_type,
-            "action": action,
-            "record_id": record_id,
-            "ip_address": "tracked_separately"  # Should come from request context
-        })
-
-# Data protection instance
-data_protection = DataProtectionManager()
-
-class SecureUserProfile(BaseModel):
-    """User profile with automatic PII protection"""
+    def _mask_value(self, value: Any, field_name: str, access_level: str) -> Any:
+        """🎭 Apply appropriate masking based on field type and access level"""
+        if access_level == "admin":
+            return value  # Admins see everything
+        
+        value_str = str(value)
+        field_lower = field_name.lower()
+        
+        # 📧 Email masking
+        if "email" in field_lower or re.search(self.pii_patterns["email"], value_str):
+            if "@" in value_str:
+                local, domain = value_str.split("@", 1)
+                return f"{local[0]}***@{domain}"
+            return "***@***.***"
+        
+        # 📱 Phone masking  
+        elif "phone" in field_lower or re.search(self.pii_patterns["phone"], value_str):
+            return f"***-***-{value_str[-4:]}" if len(value_str) >= 4 else "***-***-****"
+        
+        # 🆔 SSN masking
+        elif "ssn" in field_lower or re.search(self.pii_patterns["ssn"], value_str):
+            return f"***-**-{value_str[-4:]}" if len(value_str) >= 4 else "***-**-****"
+        
+        # 💳 Credit card masking
+        elif "card" in field_lower or re.search(self.pii_patterns["credit_card"], value_str):
+            return f"****-****-****-{value_str[-4:]}" if len(value_str) >= 4 else "****-****-****-****"
+        
+        # 🔐 Password/secret masking
+        elif any(secret_word in field_lower for secret_word in ["password", "secret", "key", "token"]):
+            return "***PROTECTED***"
+        
+        # 📄 Generic sensitive data masking
+        elif len(value_str) > 8:
+            return f"{value_str[:2]}***{value_str[-2:]}"
+        else:
+            return "***"
     
-    id: int
-    username: str
-    email: str
-    phone: Optional[str] = None
-    ssn: Optional[str] = None  # Should be encrypted
-    
-    class Config:
-        # Custom serializer for PII masking
-        json_encoders = {
-            str: lambda v: data_protection.mask_pii(v, "generic")
-        }
-
-@app.get("/users/{user_id}/profile")
-async def get_user_profile(
-    user_id: int,
-    include_sensitive: bool = Query(False, description="Include sensitive data (admin only)"),
-    current_user: User = Depends(get_current_user_flexible),
-    _: None = Depends(apply_rate_limit)
-):
-    """
-    Get user profile with PII protection
-    
-    🔒 Privacy controls:
-    - Automatic PII masking for non-admin users
-    - Audit logging for sensitive data access
-    - Field-level access control
-    """
-    
-    # Log data access
-    data_protection.log_data_access(
-        current_user.id, 
-        "user_profile", 
-        "read", 
-        str(user_id)
-    )
-    
-    # Check permissions for sensitive data
-    if include_sensitive and "admin" not in current_user.roles:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Admin access required for sensitive data"
+    def log_vault_access(
+        self, 
+        user_id: int, 
+        treasure_type: str, 
+        action: str,
+        classification: TreasureClassification,
+        ip_address: str,
+        success: bool,
+        details: Optional[str] = None
+    ):
+        """📚 Record access in royal audit chronicles"""
+        audit_entry = VaultAccess(
+            user_id=user_id,
+            treasure_type=treasure_type,
+            action=action,
+            classification=classification,
+            timestamp=datetime.utcnow().isoformat(),
+            ip_address=ip_address,
+            success=success,
+            details=details
         )
+        self.royal_auditors.append(audit_entry)
     
-    # Mock user data (in production: fetch from database)
-    user_data = {
-        "id": user_id,
-        "username": f"user_{user_id}",
-        "email": f"user{user_id}@example.com",
-        "phone": "555-123-4567",
-        "ssn": "123-45-6789"
-    }
-    
-    # Apply PII masking if not requesting sensitive data
-    if not include_sensitive:
-        user_data["email"] = data_protection.mask_pii(user_data["email"], "email")
-        user_data["phone"] = data_protection.mask_pii(user_data["phone"], "phone")
-        user_data["ssn"] = data_protection.mask_pii(user_data["ssn"], "ssn")
-    
-    return {
-        "data": user_data,
-        "privacy_notice": "Sensitive data is masked for privacy protection" if not include_sensitive else None,
-        "access_level": "full" if include_sensitive else "masked"
-    }
+    def get_audit_trail(
+        self, 
+        user_id: Optional[int] = None,
+        treasure_type: Optional[str] = None,
+        days_back: int = 30
+    ) -> List[VaultAccess]:
+        """📋 Retrieve audit trail for compliance reporting"""
+        cutoff_time = datetime.utcnow() - timedelta(days=days_back)
+        
+        filtered_audits = []
+        for audit in self.royal_auditors:
+            audit_time = datetime.fromisoformat(audit.timestamp)
+            if audit_time >= cutoff_time:
+                if (user_id is None or audit.user_id == user_id) and \
+                   (treasure_type is None or audit.treasure_type == treasure_type):
+                    filtered_audits.append(audit)
+        
+        return filtered_audits
+
+# 🏰 Initialize fortress treasury vault
+fortress_treasury = AdvancedTreasuryVault()
 ```
 
-## 🎯 Security Best Practices Summary
+### ✅ Advanced Treasure Vault Benefits
 
-### 🏆 Enterprise Security Checklist
+Here's how the fortress treasury system enhances your basic [authentication security](/docs/03_intermediate/04-authentication-authorization):
 
-| Security Layer | Implementation | Status |
-|---------------|----------------|---------|
-| **Input Validation** | Pydantic models + custom validators | ✅ |
-| **Authentication** | JWT + API keys + MFA | ✅ |
-| **Authorization** | Role-based + permission-based | ✅ |
-| **Rate Limiting** | Sliding window + adaptive limits | ✅ |
-| **Data Protection** | Encryption + PII masking | ✅ |
-| **Audit Logging** | Comprehensive access tracking | ✅ |
-| **Threat Detection** | Suspicious behavior monitoring | ✅ |
+```mermaid
+graph LR
+    A[💎 Sensitive Data] --> B{🕵️ Classification}
+    B --> C[🌍 Public<br/>No Encryption]
+    B --> D[🏰 Internal<br/>Light Encryption]
+    B --> E[🤫 Confidential<br/>Strong Encryption]
+    B --> F[👑 Top Secret<br/>Maximum Encryption]
+    
+    C --> G[🎭 Access Level Masking]
+    D --> G
+    E --> G
+    F --> G
+    
+    G --> H[📚 Audit Trail]
+    H --> I[✅ Compliant Data Access]
+    
+    style A fill:#e3f2fd
+    style I fill:#e8f5e8
+```
 
-### 🚀 Production Deployment Security
+**🏺 Key Advantages:**
+- **Automatic Classification**: AI-powered treasure assessment
+- **Multi-Level Encryption**: Different vault strengths for different data
+- **Smart Masking**: Context-aware data protection for different viewers
+- **Compliance Ready**: Built-in GDPR/privacy law support
+- **Comprehensive Auditing**: Royal chroniclers track every access
 
-When deploying to production, implement these additional security measures:
+## 🎯 Advanced Fortress Security Summary
 
-1. **🔐 Infrastructure Security**
-   - Use HTTPS/TLS 1.3 for all communications
-   - Implement proper CORS policies
-   - Set up Web Application Firewall (WAF)
-   - Use security headers (HSTS, CSP, X-Frame-Options)
+### 🏆 Complete Security Fortress Checklist
 
-2. **🛡️ Operational Security**
-   - Regular security audits and penetration testing
-   - Dependency vulnerability scanning
-   - Secret rotation policies
-   - Incident response procedures
+Your fortress now has comprehensive protection beyond basic authentication:
 
-3. **📊 Monitoring & Alerting**
-   - Real-time threat detection
-   - Anomaly detection for API usage
-   - Security metrics and dashboards
-   - Automated response to security events
+| Security Layer | Fortress Component | Advanced Features | Status |
+|----------------|-------------------|-------------------|---------|
+| **🌊 Input Defense** | Crocodile-powered moat | XSS/SSRF/injection protection | ✅ |
+| **🏹 Rate Defense** | Elite archer towers | Adaptive threat-based limiting | ✅ |
+| **🔐 Data Vaults** | Multi-level treasury | Auto-classification + encryption | ✅ |
+| **📚 Audit System** | Royal chroniclers | Comprehensive compliance logging | ✅ |
+| **🎭 Privacy Guards** | Smart masking system | Context-aware data protection | ✅ |
+| **⚔️ Threat Detection** | Siege early warning | Coordinated attack identification | ✅ |
+
+### 🚀 Fortress Deployment Readiness
+
+Your advanced fortress security integrates seamlessly with your [basic authentication kingdom](/docs/03_intermediate/04-authentication-authorization):
+
+**🎯 Integration Points:**
+- **Input validation** works with authenticated endpoints
+- **Advanced rate limiting** enhances basic auth rate limits  
+- **Data vaults** protect data beyond just passwords
+- **Audit trails** complement authentication logging
+
+**🛡️ Production Hardening:**
+- Deploy all three systems together for maximum protection
+- Use environment variables for all vault master keys
+- Set up monitoring for siege detection alerts
+- Regular audit trail reviews for compliance
+
+### 🏰 Your Complete Security Architecture
+
+```mermaid
+graph TD
+    A[🌐 External Threats] --> B[🌊 Advanced Moat<br/>Input Validation]
+    B --> C[🏹 Archer Towers<br/>Smart Rate Limiting]
+    C --> D[🚪 Castle Gates<br/>Authentication & Authorization]
+    D --> E[🏰 Inner Fortress<br/>Your Protected API]
+    E --> F[🔐 Treasury Vaults<br/>Data Protection]
+    F --> G[📚 Royal Archives<br/>Audit & Compliance]
+    
+    style A fill:#ffebee
+    style D fill:#f3e5f5
+    style E fill:#e8f5e8
+    style G fill:#fff3e0
+```
 
 ---
 
-> 🔒 **Security is a journey, not a destination**: These patterns provide a solid foundation, but security requires continuous monitoring, updating, and adaptation to new threats.
+> 🏰 **Fortress Complete**: You now have enterprise-grade security that goes far beyond basic authentication, with intelligent threat detection, advanced data protection, and comprehensive compliance features.
 
-Ready to optimize for performance? Continue to [Performance Optimization](/docs/04_advance/06-performance-optimization)! ⚡
+**Next**: Ready to optimize your secure fortress for performance? Continue to [Performance Optimization](/docs/03_intermediate/06-performance-optimization)! ⚡
