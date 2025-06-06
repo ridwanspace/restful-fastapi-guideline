@@ -352,7 +352,7 @@ Now that your restaurant is ready, you can:
 
 **Now, transform the provided documentation
 <provided_documentation>
-@app/docs/03_intermediate/01-filtering-searching/page.mdx
+@app/docs/03_intermediate/02-pagination-strategies/page.mdx
 </provided_documentation>
 
  following these Vue.js excellence standards. Make it progressive, accessible, and comprehensive for developers of all levels. Remember to adapt any advanced content to intermediate level with appropriate context and explanations.**
