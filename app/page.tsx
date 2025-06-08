@@ -37,6 +37,15 @@ export default function LandingPage() {
             <Link href="#examples" className="hover:text-sky-400 transition-colors" prefetch={false}>
               Examples
             </Link>
+            <Link
+              href="https://github.com/ridwanspace/restful-fastapi-guideline"
+              className="hover:text-sky-400 transition-colors flex items-center gap-2"
+              prefetch={false}
+              target="_blank"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"></path></svg>
+              <span>GitHub</span>
+            </Link>
           </nav>
           <Link
             href="/docs/01_getting-started"
@@ -409,7 +418,7 @@ RUN pip install -r requirements.txt
       <footer className="py-8 border-t border-slate-700 bg-slate-900">
         <div className="container mx-auto px-4 md:px-6 flex flex-col md:flex-row items-center justify-between text-sm text-slate-400">
           <p>&copy; {new Date().getFullYear()} FastAPI RESTful Guidelines. Built with ❤️ for developers.</p>
-          <div className="flex gap-4 mt-4 md:mt-0">
+          <div className="flex gap-4 mt-4 md:mt-0 items-center">
             <Link href="/docs" className="hover:text-sky-400 transition-colors" prefetch={false}>
               Documentation
             </Link>
@@ -418,6 +427,15 @@ RUN pip install -r requirements.txt
             </Link>
             <Link href="/docs/04_advanced" className="hover:text-sky-400 transition-colors" prefetch={false}>
               Enterprise Guide
+            </Link>
+            <Link
+              href="https://github.com/ridwanspace/restful-fastapi-guideline"
+              className="hover:text-sky-400 transition-colors flex items-center gap-2"
+              prefetch={false}
+              target="_blank"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"></path></svg>
+              <span>GitHub</span>
             </Link>
           </div>
         </div>
