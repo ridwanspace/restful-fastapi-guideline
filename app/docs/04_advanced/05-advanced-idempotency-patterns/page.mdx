@@ -1,224 +1,360 @@
-# 🔒 Advanced Idempotency Patterns
+# 🔒 Advanced Idempotency Patterns: Ensuring Requests Are Processed Exactly Once
 
-Idempotency ensures that making the same request multiple times has the same effect as making it once. This is crucial for robust APIs, especially for operations that modify data (`POST`, `PUT`, `PATCH`, `DELETE`), as network issues or client retries can lead to duplicate requests. While `GET`, `PUT`, and `DELETE` are often inherently idempotent by definition, `POST` (creation) and sometimes `PATCH` require explicit mechanisms.
+*A guide to building resilient APIs that can handle network retries and duplicate requests with grace.*
 
-### Deep Dive into Idempotency Keys
+## 🎯 The Challenge: The "Double-Charge" Problem
 
-An **Idempotency Key** is a unique client-generated value (e.g., a UUID) included in the request header (commonly `Idempotency-Key` or `X-Idempotency-Key`). The server uses this key to recognize and de-duplicate requests.
+### 📮 Real-World Analogy: The Reliable Postal Service
 
-**How it Works:**
-1.  **Client Generates Key:** The client generates a unique key for an operation it's about to perform.
-2.  **Client Sends Request:** The client includes this key in the request header.
-3.  **Server Receives Request:**
-    *   The server checks if it has seen this idempotency key before (typically within a certain time window, e.g., 24 hours).
-    *   **First Time:** If the key is new, the server processes the request as usual. It then stores the idempotency key along with the result of the operation (e.g., the response status code and body, or a reference to the created/modified resource).
-    *   **Subsequent Times (Duplicate):** If the key has been seen before and the original operation is still being processed or has completed, the server *does not* re-process the request. Instead, it returns a response based on the stored result of the original operation.
-        *   If the original is still processing: Return a `409 Conflict` or `425 Too Early`.
-        *   If the original completed successfully: Return the same `2xx` response.
-        *   If the original failed: Return the same `4xx` or `5xx` error response.
+Imagine you're sending a critical package that absolutely must arrive, but only once. You send it, but a storm delays confirmation. Did it arrive? You're not sure, so you send it again to be safe.
 
-**Key Characteristics of Idempotency Keys:**
-*   **Uniqueness:** Must be unique per operation attempt by the client. UUIDs are a good choice.
-*   **Client-Generated:** The client is responsible for generating and managing these keys.
-*   **Time-Limited Storage:** The server typically stores idempotency keys and their results for a limited time (e.g., 24-72 hours) to prevent indefinite storage growth.
-*   **Scope:** Idempotency keys are usually scoped to a specific user or API key to prevent collisions.
+Without a smart system, the recipient might receive two identical packages. In the API world, this is like accidentally charging a customer twice, creating a duplicate user account, or processing the same payment multiple times.
 
-**Header Name:** While `Idempotency-Key` is common (popularized by Stripe), there's no single IETF standard. `X-Idempotency-Key` is also used. Consistency within your API is key.
+**Idempotency is the postal service's guarantee:** "Even if you send the same package (request) multiple times, we'll ensure it's delivered (processed) only once."
 
-### Implementing Idempotency Middleware
+### 🤔 What is Idempotency?
 
-A FastAPI middleware is an excellent place to handle the core logic for idempotency key processing.
+Idempotency is a property of an operation where performing it multiple times has the same effect as performing it once. For APIs, this is crucial for any operation that changes data (`POST`, `PUT`, `PATCH`, `DELETE`).
 
-**Middleware Responsibilities:**
-1.  Extract the `Idempotency-Key` from request headers.
-2.  If no key is present for a non-idempotent method (like `POST`), potentially reject the request or proceed without idempotency guarantees (depending on API policy).
-3.  Check a persistent store (e.g., Redis, a database table) for the key.
-    *   **Key Found & Processing:** If the key exists and an operation is marked as "in-progress", return a `409 Conflict` (or similar) indicating the request is already being handled.
-    *   **Key Found & Completed:** If the key exists and a response was previously stored, return the stored response.
-    *   **Key Not Found:**
-        *   Mark the key as "in-progress" in the store.
-        *   Allow the request to proceed to the path operation function.
-        *   After the path operation function returns a response:
-            *   Store the idempotency key along with the response (status code, headers, body).
-            *   Mark the key as "completed".
-        *   If an error occurs during processing, store the error response and mark as "completed_with_error".
+| Method  | Is it Idempotent? | Analogy (Postal Service)                               |
+|---------|-------------------|--------------------------------------------------------|
+| `GET`   | **Yes** (by nature) | Asking "What's the status of my package?" is always safe. |
+| `PUT`   | **Yes** (by nature) | Sending a package to a *specific address* replaces whatever is there. |
+| `DELETE`| **Yes** (by nature) | Canceling a shipment at a *specific address* has the same result if done again. |
+| `POST`  | **No** (by nature)  | Sending a package to "the warehouse" creates a new shipment each time. |
+| `PATCH` | **Maybe**         | "Add fragile sticker" is safe. "Increase package count by 1" is not. |
 
-**Conceptual Idempotency Middleware Example:**
+This guide focuses on making non-idempotent operations like `POST` safe and predictable.
+
+### 📊 Visual Overview: The Idempotency Flow
+
+This diagram shows how a server uses an idempotency key to prevent duplicate processing.
+
+```mermaid
+sequenceDiagram
+    participant Client as 📱 Client App
+    participant Server as ☁️ FastAPI Server
+    participant Store as 🗄️ Idempotency Store (e.g., Redis)
+
+    Client->>+Client: 1. Generate unique Idempotency-Key (e.g., UUID)
+    Client->>+Server: 2. Send POST request with Idempotency-Key header
+
+    Server->>+Store: 3. Check if key exists
+    alt Key is NEW
+        Store-->>-Server: 4a. Key not found
+        Server->>+Store: 5a. Store key with "processing" status
+        Server->>Server: 6a. Process the request (e.g., create resource)
+        Server->>+Store: 7a. Update key with final response (e.g., 201 Created)
+        Store-->>-Server: 
+        Server-->>-Client: 8a. Return the successful response
+    else Key is SEEN
+        Store-->>-Server: 4b. Key found with stored response
+        Server-->>-Client: 5b. Return the stored response immediately (no processing)
+    end
+```
+
+## 🔑 The Solution: The Idempotency-Key
+
+The most common and robust way to enforce idempotency for `POST` requests is by using a client-generated **Idempotency-Key**.
+
+### 🎯 Analogy: The Unique Tracking Number
+
+Think of the `Idempotency-Key` as a unique tracking number you, the sender, create for your package.
+
+- **First Send**: The postal service sees the tracking number for the first time, processes the delivery, and records the outcome: "Package XYZ-123 delivered successfully at 10:00 AM."
+- **Second Send (Retry)**: You send the same package with the same tracking number. The postal service scans it and says, "Wait, I've seen XYZ-123 before. I already delivered it at 10:00 AM." It doesn't re-deliver the package; it simply gives you the original delivery confirmation.
+
+This prevents duplicate work and ensures a consistent result.
+
+### 🔧 How It Works: The Server's Checklist
+
+1.  **Client Generates Key**: The client creates a unique identifier (like a UUID) before making a request.
+2.  **Client Sends Request**: The key is included in a request header, typically `Idempotency-Key`.
+3.  **Server Receives Request**:
+    *   The server extracts the key and checks its persistent store (like Redis or a database).
+    *   **First Time**: If the key is new, the server processes the request and stores the result (the response status code, body, and headers) linked to that key.
+    *   **Subsequent Times**: If the key exists, the server **does not** re-process the request. It immediately returns the stored response from the first time.
+
+### 📝 Best Practices for Idempotency Keys
+
+-   **Uniqueness**: Keys MUST be unique per operation. UUIDs are an excellent choice.
+-   **Client-Generated**: The client is responsible for creating and managing the keys.
+-   **Header Name**: `Idempotency-Key` is a common convention (popularized by Stripe). `X-Idempotency-Key` is also used. Be consistent.
+-   **Time-Limited Storage**: The server should only store keys for a reasonable period (e.g., 24-72 hours) to prevent the store from growing indefinitely.
+
+## 🏗️ Implementation: Idempotency Middleware in FastAPI
+
+A middleware is the perfect place to handle this logic, as it can intercept requests before they hit your business logic.
+
+### 🎯 Analogy: The Mail Sorting Room
+
+Our middleware acts like a central mail sorting room. Every incoming package (`request`) is inspected here first.
+
+-   **Inspector**: The middleware code.
+-   **Logbook**: The idempotency store (Redis).
+-   **Rule**: If the tracking number is in the logbook, send back the original receipt. If not, process it and log the result.
+
+### 🔧 Enhanced Code Example: Idempotency Middleware
+
+This example demonstrates a robust middleware using a mock in-memory store. In production, you would replace this with a persistent, distributed cache like Redis.
 
 ```python
-from fastapi import FastAPI, Request, Response, HTTPException, status as http_status
-from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
-from starlette.responses import JSONResponse
+# filename: idempotency_middleware.py
+
 import uuid
 import json
-import logging
 import time
-from typing import Optional, Tuple, Any, Dict 
-import hashlib 
-# import redis.asyncio as redis # For production
+import hashlib
+import logging
+from typing import Dict, Any, Optional
+from fastapi import FastAPI, Request, Response, status as http_status
+from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
+from starlette.responses import JSONResponse
 
-app = FastAPI()
+# For a real application, use a distributed cache like Redis
+# import redis.asyncio as redis
+# redis_client = redis.Redis(host='localhost', port=6379, db=0)
+
+# --- Configuration ---
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
 
+# 💡 Tip: In-memory stores are great for examples but not for production.
+# A real system needs a shared, persistent store like Redis or a database
+# to handle multiple server instances and restarts.
 MOCK_IDEMPOTENCY_STORE: Dict[str, Dict[str, Any]] = {}
-IDEMPOTENCY_KEY_EXPIRY_SECONDS = 24 * 60 * 60  
-IDEMPOTENCY_PROCESSING_TIMEOUT_SECONDS = 30 
+IDEMPOTENCY_KEY_EXPIRY_SECONDS = 24 * 60 * 60  # 24 hours
+IDEMPOTENCY_PROCESSING_TIMEOUT_SECONDS = 30  # 30 seconds
 
 class IdempotencyMiddleware(BaseHTTPMiddleware):
+    """
+    FastAPI middleware to handle idempotency for POST, PUT, PATCH, DELETE requests.
+    
+    Acts like a mail sorting room, checking each request's "tracking number"
+    (Idempotency-Key) before processing.
+    """
+
     async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
+        # Only apply to methods that change data
         if request.method not in ("POST", "PUT", "PATCH", "DELETE"):
             return await call_next(request)
 
         idempotency_key = request.headers.get("Idempotency-Key")
         if not idempotency_key:
-            logger.debug(f"No Idempotency-Key for {request.method} {request.url.path}. Proceeding without idempotency.")
+            # 📝 Note: Depending on your API's policy, you might reject requests
+            # without a key or simply proceed without idempotency guarantees.
+            logger.debug("No Idempotency-Key. Proceeding without idempotency.")
             return await call_next(request)
         
-        if not self.is_valid_uuid(idempotency_key):
+        # 🛡️ Defense: Validate the key format to prevent invalid data in our store.
+        if not self._is_valid_uuid(idempotency_key):
             logger.warning(f"Invalid Idempotency-Key format: {idempotency_key}")
             return JSONResponse(
                 status_code=http_status.HTTP_400_BAD_REQUEST,
-                content={"error": "Invalid Idempotency-Key format. Must be a UUID."}
+                content={"error": "Invalid Idempotency-Key format. Must be a UUID."},
             )
 
-        scoped_key = f"idem:{idempotency_key}" 
+        # 🏗️ Architecture: Scope the key to prevent collisions, e.g., by user ID.
+        # For this example, we use a simple prefix.
+        scoped_key = f"idempotency:{idempotency_key}"
 
+        # --- Check 1: Look for the key in our logbook (the store) ---
         stored_entry = MOCK_IDEMPOTENCY_STORE.get(scoped_key)
 
         if stored_entry:
+            # ⚠️ Warning: Handle race conditions where a request is still processing.
             if stored_entry["status"] == "processing":
+                # If it's been "processing" for too long, assume it failed and allow a retry.
                 if time.time() - stored_entry.get("timestamp", 0) > IDEMPOTENCY_PROCESSING_TIMEOUT_SECONDS:
-                    logger.warning(f"Idempotency key {scoped_key} found processing but timed out. Allowing re-processing.")
+                    logger.warning(f"Key {scoped_key} timed out. Allowing re-processing.")
                 else:
-                    logger.info(f"Idempotency key {scoped_key} already processing. Returning 409 Conflict.")
+                    logger.info(f"Key {scoped_key} already processing. Returning 409 Conflict.")
                     return JSONResponse(
                         status_code=http_status.HTTP_409_CONFLICT,
-                        content={"error": "Request with this Idempotency-Key is already being processed."}
+                        content={"error": "Request with this key is already being processed."},
                     )
+            
+            # --- The magic of idempotency: return the stored response ---
             elif stored_entry["status"] in ("completed", "completed_with_error"):
-                logger.info(f"Idempotency key {scoped_key} found completed. Returning stored response.")
+                logger.info(f"Key {scoped_key} found. Returning stored response.")
+                response_data = stored_entry["response"]
                 return JSONResponse(
-                    status_code=stored_entry["response"]["status_code"],
-                    content=stored_entry["response"]["body"], 
-                    headers=dict(stored_entry["response"]["headers"])
+                    status_code=response_data["status_code"],
+                    content=response_data["body"],
+                    headers=dict(response_data["headers"]),
                 )
-        
-        request_body_bytes = await request.body() 
-        request_hash = hashlib.sha256(request_body_bytes).hexdigest()
 
+        # --- Check 2: If key is new, start processing ---
+        request_body_bytes = await request.body()
+        
+        # Mark the key as "processing" in the store to handle concurrent requests.
         MOCK_IDEMPOTENCY_STORE[scoped_key] = {
-            "status": "processing", 
+            "status": "processing",
             "timestamp": time.time(),
-            "request_hash": request_hash 
         }
-        
-        async def receive_body(): return {"type": "http.request", "body": request_body_bytes, "more_body": False}
-        request_with_body = Request(request.scope, receive=receive_body, send=request._send)
-
 
         try:
+            # Re-create the request with the consumed body to pass to the endpoint
+            async def receive_body():
+                return {"type": "http.request", "body": request_body_bytes, "more_body": False}
+            request_with_body = Request(request.scope, receive=receive_body, send=request._send)
+
+            # Process the actual request
             response = await call_next(request_with_body)
             
-            response_body_bytes_final = b""
-            async for chunk in response.body_iterator: 
-                response_body_bytes_final += chunk
+            # --- After processing, store the result ---
+            response_body = await self._get_response_body(response)
             
-            try:
-                response_body_content = json.loads(response_body_bytes_final.decode())
-            except json.JSONDecodeError:
-                response_body_content = response_body_bytes_final.decode() 
-
             stored_response_data = {
                 "status_code": response.status_code,
-                "headers": list(response.headers.items()), 
-                "body": response_body_content 
+                "headers": list(response.headers.items()),
+                "body": response_body,
             }
             MOCK_IDEMPOTENCY_STORE[scoped_key].update({
                 "status": "completed",
                 "response": stored_response_data,
-                "completed_at": time.time()
+                "completed_at": time.time(),
             })
-            
+
+            # Return the original response, but reconstruct it as the body was consumed
             return Response(
-                content=response_body_bytes_final,
+                content=json.dumps(response_body).encode('utf-8') if isinstance(response_body, dict) else response_body,
                 status_code=response.status_code,
                 headers=dict(response.headers),
-                media_type=response.media_type
+                media_type=response.media_type,
             )
 
         except Exception as e:
-            error_status_code = http_status.HTTP_500_INTERNAL_SERVER_ERROR
-            error_body = {"error": "Internal Server Error during idempotent processing", "detail": str(e)}
-            if isinstance(e, HTTPException):
-                error_status_code = e.status_code
-                error_body = {"error": "Request Processing Error", "detail": e.detail}
-
+            # 🐛 Debug: If anything goes wrong, store the error response.
+            # This ensures that retries of a failed request also get the same error.
+            error_status = e.status_code if isinstance(e, HTTPException) else 500
+            error_detail = e.detail if isinstance(e, HTTPException) else "Internal Server Error"
+            
             MOCK_IDEMPOTENCY_STORE[scoped_key].update({
                 "status": "completed_with_error",
-                "response": {"status_code": error_status_code, "body": error_body, "headers": {}},
-                "completed_at": time.time()
+                "response": {"status_code": error_status, "body": {"error": error_detail}, "headers": {}},
+                "completed_at": time.time(),
             })
-            
-            if isinstance(e, HTTPException):
-                raise 
-            else:
-                return JSONResponse(status_code=error_status_code, content=error_body)
+            raise e # Re-raise the exception to be handled by FastAPI's error handlers
+        
         finally:
-            keys_to_delete = [
-                k for k, v in MOCK_IDEMPOTENCY_STORE.items() 
-                if time.time() - v.get("timestamp", 0) > IDEMPOTENCY_KEY_EXPIRY_SECONDS
-            ]
-            for k_del in keys_to_delete:
-                if k_del in MOCK_IDEMPOTENCY_STORE: del MOCK_IDEMPOTENCY_STORE[k_del]
-    
-    def is_valid_uuid(self, val):
+            # 🧹 Housekeeping: Clean up expired keys to prevent the store from growing forever.
+            self._cleanup_expired_keys()
+
+    def _is_valid_uuid(self, val: str) -> bool:
         try:
             uuid.UUID(str(val))
             return True
         except ValueError:
             return False
 
-# app.add_middleware(IdempotencyMiddleware) 
+    async def _get_response_body(self, response: Response) -> Any:
+        body_bytes = b""
+        async for chunk in response.body_iterator:
+            body_bytes += chunk
+        try:
+            return json.loads(body_bytes.decode())
+        except (json.JSONDecodeError, UnicodeDecodeError):
+            return body_bytes.decode()
 
-@app.post("/create-resource")
-async def create_resource(request: Request, data: Dict[str, Any]):
-    logger.info(f"Idempotency Key from header: {request.headers.get('Idempotency-Key')}")
-    logger.info(f"Processing create_resource with data: {data}")
-    await asyncio.sleep(2) 
-        
-    new_resource_id = str(uuid.uuid4())
-    logger.info(f"Resource created with ID: {new_resource_id}")
-    return {"message": "Resource created successfully", "id": new_resource_id, "data_received": data}
+    def _cleanup_expired_keys(self):
+        now = time.time()
+        keys_to_delete = [
+            k for k, v in MOCK_IDEMPOTENCY_STORE.items()
+            if now - v.get("timestamp", 0) > IDEMPOTENCY_KEY_EXPIRY_SECONDS
+        ]
+        for k in keys_to_delete:
+            del MOCK_IDEMPOTENCY_STORE[k]
 
 ```
-*Note: This middleware example is conceptual and simplified, especially the response body handling and storage. Real-world implementations need careful consideration of response sizes, content types, and efficient storage/retrieval with a proper distributed cache like Redis.*
 
-### Database Considerations for Idempotency
+### ✅ How to Use the Middleware
 
-If you're not using middleware or want an additional layer of safety at the database level:
-*   **Idempotency Key Column:** Add an `idempotency_key` column to tables representing operations or resources created by idempotent requests (e.g., `payments` table, `orders` table).
-*   **Unique Constraint:** Place a unique constraint on `(user_id, idempotency_key)` or `(tenant_id, idempotency_key)` to prevent duplicate entries at the database level.
-*   **Two-Phase Commit (Conceptual):**
-    1.  Record the idempotency key with a "pending" status.
-    2.  Perform the actual business logic (e.g., create the order, process payment).
-    3.  If successful, update the idempotency key record to "completed" and store the result/reference.
-    4.  If it fails, update to "failed".
-    *   This requires careful transaction management.
+```python
+# filename: main.py
+import asyncio
+from fastapi import FastAPI, Request, Depends
+from typing import Dict, Any
+from idempotency_middleware import IdempotencyMiddleware
 
-### Handling Concurrent Idempotent Requests
+app = FastAPI(
+    title="Idempotent API Example",
+    description="An example demonstrating idempotency middleware."
+)
 
-Race conditions can occur if multiple identical requests with the same idempotency key arrive simultaneously before the first one has finished processing and stored its result.
-*   **Distributed Locks:** Use a distributed lock (e.g., with Redis using `SETNX` or Redlock algorithm) when an idempotency key is first seen.
-    *   The first request acquires the lock for the key.
-    *   Subsequent requests for the same key will fail to acquire the lock and can either wait (with a timeout) or return a `409 Conflict` / `425 Too Early`.
-    *   The lock is released after the first request completes (successfully or with an error) and its result is stored.
-*   **Database-Level Locking:** If using database transactions, row-level locks on the idempotency key record (if it exists) can help serialize operations for the same key.
-*   **Atomic Operations in Cache:** Cache solutions like Redis offer atomic operations (e.g., `SETNX` - SET if Not eXists) that are crucial for marking a key as "in-progress" without race conditions.
+# Add the middleware to your FastAPI application
+app.add_middleware(IdempotencyMiddleware)
 
-**Choosing a Strategy:**
-*   For most `POST` requests that create a new resource, using an `Idempotency-Key` header processed by middleware is a robust approach.
-*   The middleware should use a fast, distributed cache (like Redis) to store key states and responses.
-*   Ensure client-side logic generates and retries with the *same* idempotency key for a particular operation attempt.
+@app.post("/v1/payments", status_code=201)
+async def create_payment(data: Dict[str, Any], request: Request):
+    """
+    Simulates creating a payment. This operation is slow and
+    a perfect candidate for idempotency.
+    """
+    idempotency_key = request.headers.get("Idempotency-Key")
+    logger.info(f"Processing payment with Idempotency-Key: {idempotency_key}")
+    
+    # Simulate a slow network operation
+    await asyncio.sleep(2)
+    
+    new_payment_id = str(uuid.uuid4())
+    logger.info(f"Payment created with ID: {new_payment_id}")
+    
+    return {
+        "message": "Payment created successfully",
+        "payment_id": new_payment_id,
+        "data_received": data,
+    }
+```
 
----
+### 🚀 Next Steps: Testing It Out
+
+1.  **Run the `main.py` application.**
+2.  **Send the first request** using a tool like `curl` or Postman:
+    ```bash
+    curl -X POST "http://127.0.0.1:8000/v1/payments" \
+    -H "Content-Type: application/json" \
+    -H "Idempotency-Key: 550e8400-e29b-41d4-a716-446655440000" \
+    -d '{"amount": 1000, "currency": "usd"}'
+    ```
+3.  **Expected Result**: After a 2-second delay, you'll get a `201 Created` response with a new `payment_id`.
+4.  **Send the exact same request again** with the same `Idempotency-Key`.
+5.  **Expected Result**: You'll get the *exact same* `201 Created` response instantly, without the 2-second delay. The server recognized the key and returned the stored result.
+
+## 🗄️ Database-Level Safeguards
+
+While middleware is the first line of defense, you can add another layer of protection directly in your database.
+
+### 🎯 Analogy: The Notary's Stamp
+
+Think of this as a notary who puts a unique, official stamp on a document. Once a document with stamp `ABC-456` is filed, the notary will reject any other document with the same stamp.
+
+-   **The Stamp**: A unique constraint in your database on the `idempotency_key`.
+-   **The Document**: The record being created (e.g., a payment, an order).
+
+### 🔧 Implementation Strategy
+
+1.  **Add an `idempotency_key` column** to the relevant table (e.g., `payments`).
+2.  **Add a unique constraint** on this column (often scoped to a user or tenant, like `(user_id, idempotency_key)`).
+3.  **Your Logic**:
+    *   When a request comes in, first try to insert a new payment record.
+    *   If the database throws a `UniqueViolationError` because the key already exists, you know it's a duplicate request. You can then fetch the original record and return its details.
+
+This provides a strong guarantee against race conditions at the cost of an extra database query on the failure path.
+
+## 🌪️ Handling Concurrent Requests
+
+What if two identical requests arrive at the exact same millisecond? This is a race condition. The middleware we built handles this by immediately marking the key as "processing".
+
+For even stronger guarantees, especially in a distributed system, you can use **distributed locks**.
+
+### 🎯 Analogy: The Single-Person Vault
+
+Imagine a bank vault that only one person can enter at a time.
+
+-   **The Vault Door**: A distributed lock in Redis (e.g., using `SETNX`).
+-   **The Key**: The `idempotency_key`.
+
+When the first request arrives, it acquires a lock on `idempotency:550e8400-...`. If a second request arrives while the first is processing, it fails to acquire the lock and must either wait or return a `409 Conflict` error. The lock is released only after the first request has finished and its result is safely stored.
+
+This is an advanced pattern for systems requiring the absolute highest level of consistency.
