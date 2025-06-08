@@ -1,5 +1,4 @@
 import { Layout } from 'nextra-theme-docs'
-import { Banner } from 'nextra/components'
 import { getPageMap } from 'nextra/page-map'
 import 'nextra-theme-docs/style.css'
  
@@ -14,7 +13,6 @@ export default async function DocsLayout({ children }: { children: React.ReactNo
   return (
     <>
       <Layout
-        // banner={banner}
         pageMap={await getPageMap()}
         docsRepositoryBase="https://github.com/ridwanspace/restful-fastapi-guideline/tree/main"
         editLink={'Edit this page on GitHub'}

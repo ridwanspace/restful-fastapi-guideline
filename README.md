@@ -36,6 +36,11 @@
 
 This project is a complete learning journey for building production-ready RESTful APIs with FastAPI. Using a **"Restaurant Analogy,"** we make complex API concepts intuitive and easy to grasp. Whether you're a beginner or an experienced developer, this guide offers a structured path from fundamental concepts to advanced enterprise-grade patterns.
 
+## 🌐 Live Documentation
+
+This guide is deployed on Vercel and is publicly accessible.
+
+**[🚀 Access the Live Documentation](https://restful-fastapi-guideline.vercel.app/)**
 ## 🎯 What You'll Learn
 
 ### 🌟 **Progressive Learning Journey**
