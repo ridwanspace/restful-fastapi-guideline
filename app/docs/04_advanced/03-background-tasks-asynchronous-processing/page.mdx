@@ -1,233 +1,352 @@
-# ⚡ Background Tasks and Asynchronous Processing
+# ⚡ Background Tasks: The Art of Asynchronous Processing
 
-In web applications, especially APIs, it's crucial to respond to client requests quickly. Some operations, however, can take a significant amount of time to complete (e.g., sending an email, processing a large file, calling a slow third-party API). Performing these tasks synchronously within the request-response cycle can lead to long wait times for the client and potentially request timeouts. Background tasks allow you to offload these operations, respond immediately to the client, and process the work independently.
+*A guide to keeping your API responsive while handling time-consuming operations*
 
-### When to Use Background Tasks
-*   **Sending Notifications:** Emails, SMS, push notifications.
-*   **Data Processing:** Generating reports, resizing images, data aggregation.
-*   **Third-Party API Calls:** Interacting with external services that might be slow or unreliable.
-*   **Cache Invalidation/Population:** Updating caches after data changes.
-*   **Logging and Analytics:** Sending detailed logs or analytics events to a separate system.
-*   Any operation that doesn't need to complete before sending a response to the client.
+## 🎯 Analogy: The Efficient Restaurant Workflow
 
-### FastAPI's `BackgroundTasks` Dependency
+Imagine your API is a popular restaurant. A customer places an order (an HTTP request).
 
-FastAPI provides a simple way to run tasks in the background using the `BackgroundTasks` object. These tasks run *within the same process* as your FastAPI application after the response has been sent.
+-   **Synchronous (The Inefficient Kitchen):** The head chef takes the order, cooks the entire meal, serves it, and only then takes the next customer's order. The queue gets long, and customers become impatient. This is like making your API wait for a slow task (like sending an email) to finish before sending a response.
 
-**Key Features:**
-*   Easy to use: Inject `BackgroundTasks` into your path operation function.
-*   Runs after response: Ensures the client gets a quick acknowledgment.
-*   Suitable for I/O-bound tasks that are not CPU-intensive and don't require a separate worker process.
+-   **Asynchronous (The Efficient Kitchen):** The head chef takes the order, gives it to a specialized prep cook in the back, and immediately takes the next order. The customer gets their order confirmation right away and the food arrives when it's ready. This is the magic of background tasks.
 
-**Limitations:**
-*   **Single Process:** Tasks run in the same event loop and process as the main application. CPU-bound tasks can still block the event loop if not handled carefully (e.g., by running them in a thread pool executor via `asyncio.to_thread`).
-*   **No Built-in Retries/Persistence:** If the server crashes while a background task is running, the task is lost. There's no automatic retry mechanism.
-*   **Limited Monitoring:** No built-in dashboard or extensive monitoring for these tasks.
-*   **Not for Very Long-Running or Critical Tasks:** For tasks that are critical, very long-running, or require guaranteed execution, a dedicated task queue is more appropriate.
+### 📊 Visual Overview: The Two Kitchen Models
 
-**Example: Sending a Confirmation Email**
+```mermaid
+graph TD
+    subgraph "Inefficient Kitchen (Synchronous)"
+        A[Customer places order] --> B{Head Chef cooks meal};
+        B --> C[Customer waits...];
+        C --> D[Meal is served];
+        D --> E[Chef takes next order];
+    end
+
+    subgraph "Efficient Kitchen (Asynchronous)"
+        F[Customer places order] --> G{Head Chef takes order};
+        G --> H[Chef gives order to Prep Cook];
+        G --> I[Chef immediately takes next order];
+        H --> J[Prep Cook prepares meal];
+        J --> K[Meal is served when ready];
+    end
+
+    style A fill:#ffcdd2
+    style F fill:#c8e6c9
+```
+
+### 🤔 When to Use Background Tasks?
+
+Use background tasks for any operation that doesn't need to complete before you send a response to the client.
+
+-   **Sending Notifications:** Emails, SMS, or push notifications.
+-   **Heavy Data Processing:** Generating reports, resizing images, or complex calculations.
+-   **Third-Party API Calls:** Interacting with external services that might be slow.
+-   **Cache Management:** Updating caches after data changes.
+-   **Logging & Analytics:** Sending detailed logs to a separate system.
+
+---
+
+## 🧑‍🍳 FastAPI's `BackgroundTasks`: The In-House Prep Cook
+
+FastAPI provides a simple, built-in way to handle background tasks. Think of it as having a reliable prep cook working in the same kitchen as your head chef.
+
+### What is `BackgroundTasks`?
+
+It's a dependency that allows you to add tasks to be run *after* the response has been sent to the client. These tasks run in the same process as your FastAPI application.
+
+### 📊 How It Works
+
+```mermaid
+graph LR
+    A[Client Request] --> B[FastAPI Endpoint];
+    B --> C{1. Process Request};
+    C --> D[2. Add Task to BackgroundTasks];
+    D --> E[3. Send Response to Client];
+    E --> F((🚀 Client receives fast response));
+    D -- after response is sent --> G[4. Execute Background Task];
+    G --> H((✅ Task completes));
+
+    style E fill:#c8e6c9
+    style F fill:#c8e6c9
+```
+
+### ⚠️ Limitations: When the Prep Cook Gets Overwhelmed
+
+While easy to use, `BackgroundTasks` has important limitations:
+
+-   **Single Kitchen:** Tasks run in the same process. A very heavy, CPU-intensive task can still slow down the whole kitchen (the event loop).
+-   **No Persistence:** If the restaurant closes unexpectedly (the server crashes), any unfinished prep work is lost forever. There are no retries.
+-   **Limited Oversight:** There's no built-in dashboard to see what the prep cooks are doing or how long their tasks are taking.
+-   **Not for Critical Tasks:** For mission-critical or very long-running jobs, you need a more robust solution.
+
+### 🔧 Example: Sending a Welcome Email
+
+Here, we register a user and send a welcome email in the background. The user gets an immediate confirmation of registration without waiting for the email to be sent.
+
 ```python
-from fastapi import FastAPI, BackgroundTasks, Depends, status
-from pydantic import BaseModel
-import time
+# main.py
+from fastapi import FastAPI, BackgroundTasks, status
+from pydantic import BaseModel, EmailStr
+from typing import Dict
 import logging
-import uvicorn 
-import asyncio 
+import asyncio
 
-app = FastAPI()
-logger = logging.getLogger(__name__)
+# --- Basic Setup ---
+# Like setting up our restaurant's logging system to track orders
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
 
-async def send_email_async(email_to: str, subject: str, body: str):
-    logger.info(f"Preparing to send email to: {email_to} with subject: '{subject}'")
-    await asyncio.sleep(5) 
-    logger.info(f"Email successfully sent to: {email_to}, Subject: '{subject}', Body: '{body[:50]}...'")
+app = FastAPI(
+    title="Efficient Restaurant API",
+    description="Demonstrating background tasks with FastAPI.",
+    version="1.0.0"
+)
 
-def send_email_sync(email_to: str, subject: str, body: str):
-    logger.info(f"SYNC: Preparing to send email to: {email_to} with subject: '{subject}'")
-    time.sleep(5) 
-    logger.info(f"SYNC: Email successfully sent to: {email_to}, Subject: '{subject}', Body: '{body[:50]}...'")
+# --- The Background Task ---
+# This is our "prep cook's" recipe for sending an email.
+async def send_welcome_email(email: EmailStr, username: str):
+    """
+    A simulated email sending function.
+    In a real app, this would use a library like `fastapi-mail`.
+    """
+    logger.info(f"🍳 Preparing welcome email for {username} to {email}...")
+    # Simulate a network delay of sending an email
+    await asyncio.sleep(5)
+    logger.info(f"✅ Welcome email successfully sent to {email}.")
 
-
+# --- Pydantic Models ---
+# Defines the structure of the customer's order (the request body)
 class UserCreate(BaseModel):
     username: str
-    email: str
+    email: EmailStr
     password: str
 
-@app.post("/users/register", status_code=status.HTTP_201_CREATED)
-async def register_user(user_data: UserCreate, background_tasks: BackgroundTasks):
-    logger.info(f"Registering user: {user_data.username} with email: {user_data.email}")
-    user_id = 123 
+# --- The Endpoint ---
+@app.post("/register", status_code=status.HTTP_202_ACCEPTED)
+async def register_user(
+    user_data: UserCreate,
+    background_tasks: BackgroundTasks  # Inject the "prep cook"
+) -> Dict[str, str]:
+    """
+    Registers a user and schedules a welcome email to be sent.
+    """
+    # The head chef takes the order and confirms it.
+    logger.info(f"Received registration for {user_data.username}.")
 
-    email_subject = "Welcome to Our Awesome Service!"
-    email_body = f"Hi {user_data.username},\n\nWelcome! We're glad to have you."
-    
-    background_tasks.add_task(send_email_async, user_data.email, email_subject, email_body)
-    
-    logger.info(f"User {user_data.username} registration request processed. Email task added to background.")
-    return {"message": "User registered successfully. Confirmation email will be sent.", "user_id": user_id}
+    # The head chef hands off the email task to the prep cook.
+    # The `add_task` method is like putting a ticket on the prep cook's station.
+    background_tasks.add_task(
+        send_welcome_email,
+        user_data.email,
+        user_data.username
+    )
 
-# if __name__ == "__main__":
-#     uvicorn.run(app, host="0.0.0.0", port=8000)
+    # The head chef immediately confirms the order with the customer.
+    logger.info("Registration confirmed. Handing off to client.")
+    return {
+        "message": "User registered successfully. A welcome email is on its way!",
+        "username": user_data.username
+    }
 ```
-In this example, the `/users/register` endpoint will immediately return a response to the client after adding the `send_email_async` task. The email sending will happen in the background.
 
-### Integrating with Task Queues (e.g., Celery, RQ, Dramatiq, ARQ)
+#### ✅ What Just Happened?
 
-For more robust, scalable, and reliable background task processing, dedicated task queues are recommended. They offer:
-*   **Separate Worker Processes:** Tasks run in different processes (or even different machines), preventing them from impacting API responsiveness.
-*   **Persistence:** Tasks can be stored in a message broker (e.g., Redis, RabbitMQ) and will be processed even if the API server restarts.
-*   **Retries & Error Handling:** Built-in mechanisms for retrying failed tasks with configurable strategies (e.g., exponential backoff).
-*   **Scheduling:** Ability to schedule tasks to run at specific times or intervals.
-*   **Monitoring & Management:** Tools to inspect queues, workers, and task statuses (e.g., Flower for Celery).
-*   **Distributed Execution:** Scale workers independently of your API servers.
+1.  The `/register` endpoint was called.
+2.  It immediately added the `send_welcome_email` function to the background tasks.
+3.  It returned a `202 Accepted` response to the client.
+4.  *After* the response was sent, FastAPI executed the `send_welcome_email` task.
 
-**Conceptual Example: FastAPI with Celery**
+#### 🚀 Next Steps
 
-This requires Celery and a message broker (like Redis or RabbitMQ) to be set up.
+This is great for simple tasks. But what if your email service fails? Or what if you need to process a million records? For that, we need to bring in an external partner.
 
-**1. Define Celery Tasks (`tasks.py`):**
+---
+
+## 🚚 Dedicated Task Queues: The External Catering Service
+
+When your restaurant gets too busy, you hire an external catering service to handle large orders. In the API world, this is a **dedicated task queue** like Celery, RQ, or ARQ.
+
+### Why Use a Dedicated Service?
+
+| Feature | 🧑‍🍳 In-House Prep Cook (`BackgroundTasks`) | 🚚 External Catering (Celery, etc.) | 🎯 Why It Matters |
+| :--- | :--- | :--- | :--- |
+| **Workers** | Same process as API | Separate, dedicated processes | Prevents API slowdowns, allows independent scaling. |
+| **Persistence** | No (tasks lost on crash) | Yes (tasks stored in a broker) | **Reliability.** Guarantees tasks will be executed. |
+| **Retries** | No built-in mechanism | Yes (e.g., exponential backoff) | **Resilience.** Automatically handles temporary failures. |
+| **Monitoring** | Limited to logging | Advanced dashboards (e.g., Flower) | **Observability.** See queue status, track failures. |
+| **Scheduling** | No | Yes (run tasks at specific times) | **Automation.** Schedule nightly reports, etc. |
+
+### 📊 Architecture Overview: FastAPI with Celery
+
+```mermaid
+graph TD
+    Client[Client] -->|1. POST /register| FastAPI[FastAPI App];
+    FastAPI -->|2. Enqueue Task| Broker[(Message Broker<br/>e.g., Redis, RabbitMQ)];
+    FastAPI -->|3. Return Task ID| Client;
+    Broker -->|4. Distribute Task| CeleryWorker[Celery Worker 1];
+    Broker -->|...| CeleryWorker2[Celery Worker 2];
+    CeleryWorker -->|5. Execute Task| ExternalService[📧 Email Service];
+    CeleryWorker -->|6. Store Result| ResultBackend[(Result Backend<br/>e.g., Redis, Database)];
+
+    subgraph "Your API Server"
+        FastAPI
+    end
+    subgraph "Task Queue System (Can be on other servers)"
+        Broker
+        CeleryWorker
+        CeleryWorker2
+        ResultBackend
+    end
+
+    style Client fill:#e3f2fd
+    style FastAPI fill:#f1f8e9
+    style CeleryWorker fill:#fff3e0
+```
+
+### 🔧 Tutorial: Integrating FastAPI with Celery
+
+Let's upgrade our restaurant to use a professional catering service.
+
+#### Step 1: Setting Up Your Catering Service HQ (`tasks.py`)
+
+This file defines your Celery application and the tasks it can perform.
+
 ```python
 # tasks.py
 from celery import Celery
+from celery.utils.log import get_task_logger
 import time
-import logging
-import os 
+import os
 
-logger = logging.getLogger(__name__) 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(task_id)s - %(message)s')
-
-
+# --- Celery Configuration ---
+# The broker is the communication line to the catering service (e.g., a phone line to Redis).
+# The backend is where they store the results of their work.
 CELERY_BROKER_URL = os.environ.get("CELERY_BROKER_URL", "redis://localhost:6379/0")
 CELERY_RESULT_BACKEND = os.environ.get("CELERY_RESULT_BACKEND", "redis://localhost:6379/0")
 
+# Initialize the Celery app - this is like setting up the catering company's main office.
 celery_app = Celery(
-    "my_fastapi_tasks", 
+    "my_tasks",
     broker=CELERY_BROKER_URL,
     backend=CELERY_RESULT_BACKEND
 )
 
-celery_app.conf.update(
-    task_serializer="json",
-    accept_content=["json"],
-    result_serializer="json",
-    timezone="UTC",
-    enable_utc=True,
-    task_track_started=True, 
-)
+# Get a logger specific to our tasks
+logger = get_task_logger(__name__)
 
-
-@celery_app.task(bind=True, name="send_confirmation_email_task", max_retries=3, default_retry_delay=60) 
+# --- Define Your Catering Menu (The Tasks) ---
+@celery_app.task(bind=True, name="send_confirmation_email", max_retries=3, default_retry_delay=60)
 def send_confirmation_email_task(self, user_email: str, username: str):
+    """
+    A robust task to send a confirmation email.
+    `bind=True` gives us access to `self` for retries.
+    `max_retries=3` will attempt the task up to 3 times if it fails.
+    """
     try:
-        logger.info(f"Task {self.request.id}: Sending confirmation email to {user_email} for user {username}")
-        time.sleep(10) 
-        logger.info(f"Task {self.request.id}: Confirmation email sent to {user_email}")
-        return {"status": "success", "email": user_email, "task_id": self.request.id}
+        logger.info(f"Task {self.request.id}: Preparing to send email to {user_email}")
+        # Simulate a potentially failing network operation
+        if time.time() % 5 < 2: # Simulate a random failure
+             raise ConnectionError("Failed to connect to email server")
+        
+        time.sleep(10) # Simulate sending time
+        logger.info(f"Task {self.request.id}: Email sent to {user_email}")
+        return {"status": "success", "email": user_email}
     except Exception as e:
-        logger.error(f"Task {self.request.id}: Failed to send email to {user_email}: {e}", exc_info=True)
-        try:
-            raise self.retry(exc=e, countdown=self.default_retry_delay * (2**self.request.retries))
-        except self.MaxRetriesExceededError:
-            logger.critical(f"Task {self.request.id}: Max retries exceeded for sending email to {user_email}.")
-            return {"status": "failed_max_retries", "email": user_email, "task_id": self.request.id, "error": str(e)}
-
-
-@celery_app.task(bind=True, name="process_large_data_task")
-def process_large_data_task(self, data_id: str, user_id: int):
-    logger.info(f"Task {self.request.id}: Starting processing for data_id: {data_id}, user_id: {user_id}")
-    total_steps = 10
-    for i in range(total_steps):
-        time.sleep(2) 
-        self.update_state(state='PROGRESS', meta={'current': i + 1, 'total': total_steps, 'status': f'Processing step {i+1}'})
-        logger.info(f"Task {self.request.id}: Step {i+1}/{total_steps} for data_id: {data_id}")
-    
-    result_url = f"/results/data/{data_id}" 
-    logger.info(f"Task {self.request.id}: Finished processing for data_id: {data_id}. Result at {result_url}")
-    return {"status": "completed", "data_id": data_id, "result_url": result_url, "task_id": self.request.id}
-
+        logger.error(f"Task {self.request.id}: Failed to send email. Retrying...")
+        # This will automatically retry the task based on our settings
+        raise self.retry(exc=e)
 ```
 
-**2. Trigger Celery Task from FastAPI Endpoint (`main.py`):**
-```python
-# main.py (FastAPI app)
-from fastapi import FastAPI, BackgroundTasks, HTTPException, status as http_status
-from pydantic import BaseModel
-import tasks 
-import logging
-import uvicorn
-from celery.result import AsyncResult 
+#### Step 2: Placing Orders from Your Restaurant (`main.py`)
 
-app = FastAPI()
-logger = logging.getLogger(__name__)
-logging.basicConfig(level=logging.INFO)
+Now, let's modify our FastAPI endpoint to place an order with the Celery catering service.
+
+```python
+# main.py (modified)
+from fastapi import FastAPI, status
+from pydantic import BaseModel, EmailStr
+from typing import Dict
+import logging
+from celery.result import AsyncResult
+# Import the task we defined in our catering service HQ
+from tasks import send_confirmation_email_task, celery_app
+
+# ... (FastAPI app and logger setup as before) ...
 
 class UserRegistration(BaseModel):
     username: str
-    email: str
+    email: EmailStr
 
-class DataProcessingRequest(BaseModel):
-    data_id: str
-    user_id: int
+class TaskStatus(BaseModel):
+    task_id: str
+    status: str
+    result: Dict = None
 
-@app.post("/users/register-celery")
-async def register_user_with_celery(user_data: UserRegistration):
-    logger.info(f"Received registration for {user_data.username}, queuing email task.")
-    task_result = tasks.send_confirmation_email_task.delay(user_data.email, user_data.username)
-    logger.info(f"Email task for {user_data.email} enqueued with Celery Task ID: {task_result.id}")
+@app.post("/register-celery", status_code=status.HTTP_202_ACCEPTED)
+async def register_user_with_celery(user_data: UserRegistration) -> Dict[str, str]:
+    """
+    Places an order with our Celery catering service to send an email.
+    """
+    logger.info(f"Queuing email task for {user_data.username}.")
+    # `.delay()` is the command to send the task to the Celery queue.
+    # It's non-blocking and returns immediately.
+    task = send_confirmation_email_task.delay(user_data.email, user_data.username)
+    logger.info(f"Email task enqueued with ID: {task.id}")
     return {
-        "message": "User registration submitted, confirmation email will be sent.",
-        "email_task_id": task_result.id
+        "message": "Registration submitted. A confirmation email will be sent by our catering service.",
+        "task_id": task.id,
+        "status_url": f"/tasks/{task.id}"
     }
 
-@app.post("/process-data-celery")
-async def process_data_with_celery(data_request: DataProcessingRequest):
-    logger.info(f"Received data processing request for data_id: {data_request.data_id}")
-    task_result = tasks.process_large_data_task.delay(data_request.data_id, data_request.user_id)
-    logger.info(f"Data processing task for {data_request.data_id} enqueued with Celery Task ID: {task_result.id}")
-    return {
-        "message": "Data processing task initiated.",
-        "task_id": task_result.id,
-        "status_url": f"/tasks/status/{task_result.id}" 
-    }
-
-@app.get("/tasks/status/{task_id}")
+@app.get("/tasks/{task_id}", response_model=TaskStatus)
 async def get_task_status(task_id: str):
-    task = AsyncResult(task_id, app=tasks.celery_app) 
-    
-    response = {
+    """
+    Allows the client to check on the status of their order.
+    """
+    task_result = AsyncResult(task_id, app=celery_app)
+    return {
         "task_id": task_id,
-        "status": task.status,
-        "result": task.result if task.ready() else None,
+        "status": task_result.status,
+        "result": task_result.result if task_result.ready() else None
     }
-    if task.status == 'PROGRESS':
-        response['progress'] = task.info 
-    elif task.status == 'FAILURE':
-        response['error_info'] = str(task.result) 
-    
-    return response
-
-# To run this:
-# 1. Start Redis: `redis-server`
-# 2. Start Celery worker: `celery -A tasks.celery_app worker -l info --concurrency=4`
-# 3. Start FastAPI app: `uvicorn main:app --reload`
 ```
 
-### Handling Long-Running Operations & Status Updates
-When a task is offloaded, the client might need to know its status or get the result later.
-*   **Return Task ID:** As shown in the Celery example, return a unique task ID to the client.
-*   **Status Endpoint:** Provide an endpoint (e.g., `/tasks/status/{task_id}`) where the client can poll for the task's status and result.
-*   **WebSockets/Server-Sent Events (SSE):** For real-time updates, the server can push status updates to the client over a WebSocket connection or using SSE once the task state changes. This avoids client-side polling.
-*   **Callbacks/Webhooks:** The background task, upon completion (or failure), can make an HTTP request to a callback URL provided by the client or another service.
+#### Step 3: Running the Whole Operation
 
-### Monitoring Background Tasks
-*   **Logging:** Implement comprehensive logging within your task functions. Include task IDs, parameters, and timing information.
-*   **Task Queue Monitoring Tools:**
-    *   **Flower:** A web-based tool for monitoring and administrating Celery clusters.
-    *   **RQ Dashboard:** For Redis Queue.
-    *   Many task queues have similar UIs or CLI tools.
-*   **Application Performance Monitoring (APM):** Integrate with APM tools (e.g., Datadog, New Relic, Sentry) which often have specific integrations for popular task queues. This allows you to trace tasks, view error rates, and measure performance.
-*   **Metrics:** Collect metrics like queue length, number of active workers, task execution time, and error rates. Expose these via a metrics endpoint (e.g., for Prometheus).
-*   **Alerting:** Set up alerts for critical failures, long queue times, or high error rates.
+You now have two separate services to run:
+
+1.  **Start the Catering Service (Celery Worker):**
+    ```bash
+    # You need Redis running first!
+    # Then, in your terminal:
+    celery -A tasks.celery_app worker -l info --concurrency=4
+    ```
+
+2.  **Start the Restaurant (FastAPI App):**
+    ```bash
+    # In another terminal:
+    uvicorn main:app --reload
+    ```
 
 ---
+
+## 📡 Customer Tracking: Keeping Clients Informed
+
+When a task is offloaded, the client needs a way to track its progress.
+
+-   **Return Task ID (The Order Number):** As shown above, always return the `task_id`. This is the client's ticket to check on their order.
+-   **Status Endpoint (Calling for Updates):** The `/tasks/{task_id}` endpoint allows the client to poll for the task's status.
+-   **WebSockets/SSE (The Pager System):** For a better user experience, you can use WebSockets or Server-Sent Events to push real-time status updates to the client, like a restaurant pager that buzzes when the food is ready.
+-   **Callbacks/Webhooks (The Delivery Confirmation):** The background task itself can make an HTTP request to a URL provided by the client once it's finished. This is useful for server-to-server communication.
+
+---
+
+## 📈 The Manager's Dashboard: Monitoring Your Tasks
+
+A busy restaurant needs a manager who watches over everything. For background tasks, monitoring is crucial.
+
+-   **Logging (The Daily Logbook):** Implement comprehensive, structured logging in your tasks. Include task IDs, parameters, and timings.
+-   **Task Queue Monitoring Tools (Specialized Screens):**
+    -   **Flower:** A fantastic web-based tool for monitoring and managing Celery clusters.
+    -   **RQ Dashboard:** A similar tool for Redis Queue.
+-   **Application Performance Monitoring (APM):** Tools like Datadog, New Relic, or Sentry provide deep insights into task performance, error rates, and tracing across your entire system.
+-   **Metrics & Alerting (Key Performance Indicators):** Collect metrics like queue length, number of active workers, and task execution time. Set up alerts for critical failures or long queue times to proactively manage your system.
