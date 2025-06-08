@@ -44,23 +44,21 @@ sequenceDiagram
     participant Client as Client App
     participant Server as Server App
 
-    box "Polling: The 'Are we there yet?' approach"
-        loop Every X seconds
-            Client->>Server: Any new data for me?
-            Server->>Client: Nope, nothing yet.
-        end
-        Note over Client,Server: After many useless checks...
+    Note over Client,Server: Polling: The 'Are we there yet?' approach
+    loop Every X seconds
         Client->>Server: Any new data for me?
-        Server->>Client: Yes! Here is the new data.
+        Server->>Client: Nope, nothing yet.
     end
+    Note over Client,Server: After many useless checks...
+    Client->>Server: Any new data for me?
+    Server->>Client: Yes! Here is the new data.
 
-    box "Webhooks: The 'Don't call us, we'll call you' approach"
-        Client->>Server: Register my webhook URL: /my-endpoint
-        Server->>Client: Got it. I'll notify you there.
-        Note over Client,Server: ...Some time later...
-        Server->>Client: 🚀 Event Happened! Sending data to /my-endpoint.
-        Client->>Server: ✅ Thanks! I've received it.
-    end
+    Note over Client,Server: Webhooks: The 'Don't call us, we'll call you' approach
+    Client->>Server: Register my webhook URL: /my-endpoint
+    Server->>Client: Got it. I'll notify you there.
+    Note over Client,Server: ...Some time later...
+    Server->>Client: 🚀 Event Happened! Sending data to /my-endpoint.
+    Client->>Server: ✅ Thanks! I've received it.
 ```
 
 | Feature | Polling (Pull) | Webhooks (Push) | 🏆 Winner |
