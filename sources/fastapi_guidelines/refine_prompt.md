@@ -321,11 +321,13 @@ Now that your restaurant is ready, you can:
 
 ---
 
-**Now, transform and modify the 
+
+Before, start transforming, you can refer to @app/docs/03_intermediate/08-best-practices/page.mdx to understand the same structure and format.
+
+**Now after you have understood the structure and format, transform and modify the 
 <provided_documentation>
-@app/docs/03_intermediate/09-examples/analytics-api/page.mdx
+@app/docs/03_intermediate/09-examples/social-media-api/page.mdx
 </provided_documentation>
 
 following these Vue.js excellence standards. Make it progressive, accessible, and comprehensive for developers of all levels.**
 
-Before, start transforming, you can refer to @app/docs/03_intermediate/08-best-practices/page.mdx to understand the same structure and format.
