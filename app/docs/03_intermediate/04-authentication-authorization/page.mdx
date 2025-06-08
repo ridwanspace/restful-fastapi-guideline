@@ -472,10 +472,10 @@ Here's the magical transformation process:
 
 ```mermaid
 graph LR
-    A[🔑 Plain Password<br/>"MySecret123!"] --> B[🧙‍♂️ Royal Alchemist<br/>bcrypt + salt]
-    B --> C[🔐 Vault Storage<br/>"$2b$12$..."]
+    A[🔑 Plain Password<br/>'MySecret123!'] --> B[🧙‍♂️ Royal Alchemist<br/>bcrypt + salt]
+    B --> C[🔐 Vault Storage<br/>'$2b$12$...']
     
-    D[🚪 Login Attempt<br/>"MySecret123!"] --> E[🔍 Royal Verification]
+    D[🚪 Login Attempt<br/>'MySecret123!'] --> E[🔍 Royal Verification]
     E --> C
     E --> F{Match?}
     F -->|Yes| G[✅ Access Granted]
