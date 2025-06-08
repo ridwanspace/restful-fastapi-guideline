@@ -62,9 +62,7 @@ export default function LandingPage() {
               <span className="block text-sky-400">FastAPI</span>
             </h1>
             <p className="mt-6 max-w-3xl mx-auto text-lg text-slate-300 sm:text-xl md:text-2xl">
-              A comprehensive, progressive guide to building professional REST APIs with FastAPI. 
-              From your first "Hello World" to enterprise-grade microservices, 
-              using <span className="text-sky-400 font-semibold">restaurant analogies</span> that make complex concepts intuitive.
+              A comprehensive, progressive guide to building robust and scalable RESTful APIs with FastAPI. From fundamental concepts to advanced enterprise-grade patterns, using <span className="text-sky-400 font-semibold">restaurant analogies</span> that make complex concepts intuitive.
             </p>
             <div className="mt-10 flex flex-col sm:flex-row justify-center gap-4">
               <Link
@@ -98,7 +96,7 @@ export default function LandingPage() {
               {[
                 { 
                   title: "🚀 Getting Started", 
-                  description: "Learn REST fundamentals, HTTP methods, and build your first API using our famous restaurant analogy.", 
+                  description: "Begin your journey with the basics of RESTful APIs, HTTP methods, URI design, and setting up your first FastAPI application.",
                   icon: "🏪", 
                   level: "Beginner",
                   color: "bg-emerald-500/20 border-emerald-500/30 text-emerald-300",
@@ -106,7 +104,7 @@ export default function LandingPage() {
                 },
                 { 
                   title: "🏛️ Foundation", 
-                  description: "Master request handling, data validation, error management, and project structure for production APIs.", 
+                  description: "Build a solid understanding of core FastAPI concepts, including request/response handling, data validation, error handling, and project structure.",
                   icon: "👨‍🍳", 
                   level: "Beginner+",
                   color: "bg-blue-500/20 border-blue-500/30 text-blue-300",
@@ -114,7 +112,7 @@ export default function LandingPage() {
                 },
                 { 
                   title: "🚀 Intermediate", 
-                  description: "Advanced URI design, HTTP semantics, versioning strategies, and sophisticated response patterns.", 
+                  description: "Dive deeper into practical patterns like filtering, pagination, sorting, advanced security, performance optimization, and monitoring.",
                   icon: "🎯", 
                   level: "Intermediate",
                   color: "bg-yellow-500/20 border-yellow-500/30 text-yellow-300",
@@ -122,7 +120,7 @@ export default function LandingPage() {
                 },
                 { 
                   title: "🔥 Advanced", 
-                  description: "Complex filtering, pagination, performance optimization, security, and monitoring for enterprise APIs.", 
+                  description: "Explore enterprise-grade features such as WebSockets, webhooks, background tasks, microservices architecture, idempotency, and cloud deployment strategies.",
                   icon: "⚡", 
                   level: "Advanced",
                   color: "bg-orange-500/20 border-orange-500/30 text-orange-300",
@@ -224,19 +222,19 @@ export default function LandingPage() {
                   name: "🛒 E-Commerce", 
                   description: "Product catalogs, order management, payment processing, inventory tracking",
                   examples: ["Product APIs", "Cart Management", "Payment Webhooks", "Inventory Sync"],
-                  pattern: "Advanced filtering, real-time updates, transaction safety"
+                  pattern: "Inventory management, order processing workflows, payment webhook integrations"
                 },
                 { 
                   name: "🏦 FinTech", 
                   description: "Banking APIs, payment processors, trading platforms, compliance systems",
                   examples: ["Account APIs", "Transaction Processing", "Risk Management", "Audit Trails"],
-                  pattern: "Idempotency, security, monitoring, regulatory compliance"
+                  pattern: "Transaction idempotency, real-time payment notifications, audit logging and compliance"
                 },
                 { 
                   name: "📱 Social Media", 
                   description: "User interactions, content management, real-time messaging, analytics",
                   examples: ["User Profiles", "Content APIs", "Chat Systems", "Feed Algorithms"],
-                  pattern: "WebSockets, background tasks, caching, scalability"
+                  pattern: "Chat systems, live dashboards, instant notifications, scalability"
                 },
                 { 
                   name: "🏥 Healthcare", 
@@ -281,7 +279,7 @@ export default function LandingPage() {
               {[
                 { 
                   title: "🏪 Your First API Restaurant", 
-                  description: "Build a complete CRUD API using restaurant analogies. Perfect for beginners learning REST fundamentals.",
+                  description: "Build a complete, working API step-by-step, creating endpoints and handling different types of requests. Perfect for beginners learning REST fundamentals.",
                   code: `@app.post("/tasks", response_model=Task)
 async def take_custom_order(task_order: TaskCreate) -> Task:
     """Take a new task order from customers"""
@@ -292,7 +290,7 @@ async def take_custom_order(task_order: TaskCreate) -> Task:
                 },
                 { 
                   title: "🔍 Advanced Query Patterns", 
-                  description: "Implement sophisticated filtering, searching, and pagination for enterprise applications.",
+                  description: "Implement sophisticated filtering, searching, and pagination strategies to help users find exactly what they need in enterprise applications.",
                   code: `@app.get("/api/v1/products")
 async def search_products(
     q: str = None,
@@ -306,7 +304,7 @@ async def search_products(
                 },
                 { 
                   title: "🔄 WebSocket Integration", 
-                  description: "Real-time communication patterns for interactive applications with connection management.",
+                  description: "Build interactive applications with real-time bidirectional communication using WebSockets, including connection management and scaling patterns.",
                   code: `@app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     await websocket.accept()
@@ -316,7 +314,7 @@ async def websocket_endpoint(websocket: WebSocket):
                 },
                 { 
                   title: "🛡️ Security & Authentication", 
-                  description: "Enterprise-grade security patterns with JWT, rate limiting, and input validation.",
+                  description: "Implement enterprise-grade security patterns, including authentication (JWT), authorization, rate limiting, and input validation, to build a fortress-level security system.",
                   code: `@app.middleware("http")
 async def security_middleware(request: Request, call_next):
     # Security checks and validation...
@@ -326,7 +324,7 @@ async def security_middleware(request: Request, call_next):
                 },
                 { 
                   title: "⚡ Background Tasks", 
-                  description: "Asynchronous processing patterns for scalable applications with task queues.",
+                  description: "Implement robust background task processing for scalable, responsive applications using asynchronous patterns and task queues.",
                   code: `@app.post("/process")
 async def process_data(background_tasks: BackgroundTasks):
     background_tasks.add_task(process_heavy_task)
@@ -336,7 +334,7 @@ async def process_data(background_tasks: BackgroundTasks):
                 },
                 { 
                   title: "🐳 Docker & Deployment", 
-                  description: "Production-ready containerization and orchestration patterns for cloud deployment.",
+                  description: "Containerize and orchestrate FastAPI applications for production deployments, ensuring consistent environments and scalable cloud deployment.",
                   code: `FROM python:3.11-slim
 WORKDIR /app
 COPY requirements.txt .
