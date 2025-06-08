@@ -194,18 +194,21 @@ When your restaurant gets too busy, you hire an external catering service to han
 
 ```mermaid
 graph TD
-    Client[Client] -->|1. POST /register| FastAPI[FastAPI App];
-    FastAPI -->|2. Enqueue Task| Broker[(Message Broker<br/>e.g., Redis, RabbitMQ)];
-    FastAPI -->|3. Return Task ID| Client;
-    Broker -->|4. Distribute Task| CeleryWorker[Celery Worker 1];
-    Broker -->|...| CeleryWorker2[Celery Worker 2];
-    CeleryWorker -->|5. Execute Task| ExternalService[📧 Email Service];
-    CeleryWorker -->|6. Store Result| ResultBackend[(Result Backend<br/>e.g., Redis, Database)];
+    Client[Client] -->|"POST /register"| FastAPI[FastAPI App];
+    FastAPI -->|"Enqueue Task"| Broker[(Message Broker<br/>e.g., Redis, RabbitMQ)];
+    FastAPI -->|"Return Task ID"| Client;
+    Broker -->|"Distribute Task"| CeleryWorker[Celery Worker 1];
+    Broker -->|"..."| CeleryWorker2[Celery Worker 2];
+    CeleryWorker -->|"Execute Task"| ExternalService[📧 Email Service];
+    CeleryWorker -->|"Store Result"| ResultBackend[(Result Backend<br/>e.g., Redis, Database)];
 
     subgraph "Your API Server"
         FastAPI
     end
     subgraph "Task Queue System (Can be on other servers)"
+    gap1[ ]
+        style gap1 fill:none,stroke:none
+        gap1 ~~~
         Broker
         CeleryWorker
         CeleryWorker2
