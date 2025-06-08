@@ -16,10 +16,10 @@ This guide will teach you how to build and manage this sophisticated messenger s
 
 ```mermaid
 graph TD
-    A[🏰 Kingdom A<br/>(Your FastAPI App)] -->|1. Event Occurs<br/>(e.g., New Order Created)| B((🔔))
-    B -- 2. Trigger Webhook --> C(📮 Royal Messenger Dispatched<br/>HTTP POST Request)
-    C -- 3. Travels to Destination --> D[🏰 Kingdom B<br/>(External Service)]
-    D -- 4. Receives Message --> E{✅ Acknowledges Receipt<br/>(200 OK Response)}
+    A["🏰 Kingdom A<br/>(Your FastAPI App)"] -->|"Event Occurs<br/>(e.g., New Order Created)"| B((🔔))
+    B -- "Trigger Webhook" --> C["📮 Royal Messenger Dispatched<br/>HTTP POST Request"]
+    C -- "Travels to Destination" --> D["🏰 Kingdom B<br/>(External Service)"]
+    D -- "Receives Message" --> E["✅ Acknowledges Receipt<br/>(200 OK Response)"]
 
     style A fill:#e3f2fd
     style D fill:#fff3e0
