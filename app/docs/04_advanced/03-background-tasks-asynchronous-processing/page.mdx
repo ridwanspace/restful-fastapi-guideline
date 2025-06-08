@@ -63,13 +63,22 @@ It's a dependency that allows you to add tasks to be run *after* the response ha
 
 ```mermaid
 graph LR
-    A[Client Request] --> B[FastAPI Endpoint];
-    B --> C{1. Process Request};
-    C --> D[2. Add Task to BackgroundTasks];
-    D --> E[3. Send Response to Client];
-    E --> F((🚀 Client receives fast response));
-    D -- after response is sent --> G[4. Execute Background Task];
-    G --> H((✅ Task completes));
+    A["Client Request"]
+    B["FastAPI Endpoint"]
+    C{"Process Request"}
+    D["Add Task to BackgroundTasks"]
+    E["Send Response to Client"]
+    F(("🚀 Client receives fast response"))
+    G["Execute Background Task"]
+    H(("✅ Task completes"))
+
+    A --> B
+    B --> C
+    C --> D
+    D --> E
+    E --> F
+    D -- "after response is sent" --> G
+    G --> H
 
     style E fill:#c8e6c9
     style F fill:#c8e6c9
