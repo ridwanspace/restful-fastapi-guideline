@@ -509,16 +509,18 @@ In a real-world application, you wouldn't hardcode subscribers. You'd build an A
 ```mermaid
 graph LR
     User[👩‍💻 User] -- Manages via UI/API --> YourApp[Your FastAPI App]
-    YourApp -- CRUD Operations --> DB[(Database<br/>webhook_subscriptions)]
+    YourApp -- CRUD Operations --> DB[(`Database<br/>webhook_subscriptions`)]
     
     subgraph "API Endpoints"
         direction LR
         A[POST /webhooks]
         B[GET /webhooks]
-        C[DELETE /webhooks/{id}]
+        C["DELETE /webhooks/{id}"]
     end
 
-    YourApp --> A & B & C
+    YourApp --> A
+    YourApp --> B
+    YourApp --> C
 
     subgraph "Event Dispatcher"
         InternalEvent(Internal Event) --> Dispatcher{Webhook Dispatcher}
