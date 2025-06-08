@@ -438,17 +438,17 @@ In a dynamic city, buildings (service instances) can be built or torn down at an
 ```mermaid
 graph TD
     subgraph "Service A (Order Service)"
-        A1[1. Need to call User Service] --> A2{2. Ask GPS for address};
+        A1["1. Need to call User Service"] --> A2{"2. Ask GPS for address"}
     end
 
     subgraph "Service B (User Service)"
-        B1[Instance 1<br/>Starts up] --> B2(3. Register with GPS);
-        B3[Instance 2<br/>Starts up] --> B2;
+        B1["Instance 1<br>Starts up"] --> B2("3. Register with GPS")
+        B3["Instance 2<br>Starts up"] --> B2
     end
     
-    A2 --> C[Service Registry<br/>(City GPS)];
-    C -->|4. Provides address| A1;
-    A1 -->|5. Makes call| B1;
+    A2 --> C["Service Registry<br>(City GPS)"]
+    C -->|4. Provides address| A1
+    A1 -->|5. Makes call| B1
 
     style C fill:#e8f5e9
 ```
