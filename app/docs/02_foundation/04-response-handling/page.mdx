@@ -15,9 +15,9 @@ graph TD
     E --> F[🚪 Service Staff<br/>HTTP Response]
     F --> G[😋 Happy Customer<br/>Client Application]
     
-    style A fill:#e3f2fd
-    style D fill:#fff3e0
-    style G fill:#c8e6c9
+    style A fill:#e3f2fd,color:#3b3b3b
+    style D fill:#fff3e0,color:#3b3b3b
+    style G fill:#c8e6c9,color:#3b3b3b
     
     subgraph "🏪 Restaurant Kitchen (FastAPI App)"
         B
@@ -52,9 +52,9 @@ graph LR
     C --> D[👨‍🍳 Chef Filter<br/>UserResponse Model]
     D --> E[🍽️ Customer Plate<br/>Safe JSON Response]
     
-    style A fill:#ffebee
-    style C fill:#fff3e0
-    style E fill:#e8f5e8
+    style A fill:#ffebee,color:#3b3b3b
+    style C fill:#fff3e0,color:#3b3b3b
+    style E fill:#e8f5e8,color:#3b3b3b
     
     subgraph "🔒 Security Layer"
         D
@@ -229,10 +229,10 @@ graph TD
     B -->|🔐 Logged-in User| D[👤 Personal Menu<br/>UserPrivate Model]
     B -->|👨‍💼 Restaurant Manager| E[📊 Full Dashboard<br/>UserAdmin Model]
     
-    style A fill:#e3f2fd
-    style C fill:#fff3e0
-    style D fill:#e8f5e8
-    style E fill:#fce4ec
+    style A fill:#e3f2fd,color:#3b3b3b
+    style C fill:#fff3e0,color:#3b3b3b
+    style D fill:#e8f5e8,color:#3b3b3b
+    style E fill:#fce4ec,color:#3b3b3b
     
     subgraph "🎯 Different Views, Same Data"
         C
@@ -462,9 +462,9 @@ graph TD
     D[📚 Large Dataset<br/>Many Items] --> E[📄 Pagination Wrapper<br/>PaginatedResponse]
     E --> F[📊 Organized Pages<br/>items + navigation info]
     
-    style A fill:#e3f2fd
-    style C fill:#e8f5e8
-    style F fill:#fff3e0
+    style A fill:#e3f2fd,color:#3b3b3b
+    style C fill:#e8f5e8,color:#3b3b3b
+    style F fill:#fff3e0,color:#3b3b3b
     
     subgraph "🎯 Same Packaging, Different Contents"
         B
@@ -670,9 +670,9 @@ graph TD
     B -->|❌ Customer Error| D[400 - Invalid order<br/>401 - Please show ID<br/>404 - Dish not on menu<br/>409 - Kitchen conflict]
     B -->|🔥 Kitchen Error| E[500 - Kitchen fire!<br/>503 - Restaurant closed<br/>502 - Supplier problems]
     
-    style C fill:#c8e6c9
-    style D fill:#fff3e0
-    style E fill:#ffebee
+    style C fill:#c8e6c9,color:#3b3b3b
+    style D fill:#fff3e0,color:#3b3b3b
+    style E fill:#ffebee,color:#3b3b3b
 ```
 
 ### 🔧 Enhanced Code Example: Restaurant Communication System

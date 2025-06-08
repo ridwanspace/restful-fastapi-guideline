@@ -16,7 +16,7 @@ Just like traffic signals help drivers navigate safely, HTTP status codes help a
 ## 📊 Visual Overview: The Complete Status Code Landscape
 
 ```mermaid
-graph TB
+graph LR
     A[🌐 HTTP Request] --> B{Response Category}
     
     B --> C[✅ 2xx Success]
@@ -42,11 +42,11 @@ graph TB
     F --> F2[502 Bad Gateway<br/>🌉 Upstream problem]
     F --> F3[503 Unavailable<br/>🔧 Maintenance mode]
     
-    style A fill:#e1f5fe
-    style C fill:#c8e6c9
-    style D fill:#fff9c4
-    style E fill:#ffccbc
-    style F fill:#ffcdd2
+    style A fill:#e1f5fe,color:#3b3b3b
+    style C fill:#c8e6c9,color:#3b3b3b
+    style D fill:#fff9c4,color:#3b3b3b
+    style E fill:#ffccbc,color:#3b3b3b
+    style F fill:#ffcdd2,color:#3b3b3b
 ```
 
 ## 🏁 Getting Started: Your First Status Codes
@@ -290,10 +290,10 @@ graph LR
     L -->|Yes| M[2xx Success]
     L -->|No| N[5xx Server Error]
     
-    style A fill:#e1f5fe
-    style M fill:#c8e6c9
-    style E fill:#ffccbc
-    style N fill:#ffcdd2
+    style A fill:#e1f5fe,color:#3b3b3b
+    style M fill:#c8e6c9,color:#3b3b3b
+    style E fill:#ffccbc,color:#3b3b3b
+    style N fill:#ffcdd2,color:#3b3b3b
 ```
 
 ### 🔧 Intermediate Implementation: Conditional Responses
@@ -494,11 +494,11 @@ graph TD
     Q -->|Yes| S[200 OK]
     Q -->|No| T[204 No Content]
     
-    style A fill:#e1f5fe
-    style S fill:#c8e6c9
-    style T fill:#c8e6c9
-    style C fill:#ffccbc
-    style R fill:#ffcdd2
+    style A fill:#e1f5fe,color:#3b3b3b
+    style S fill:#c8e6c9,color:#3b3b3b
+    style T fill:#c8e6c9,color:#3b3b3b
+    style C fill:#ffccbc,color:#3b3b3b
+    style R fill:#ffcdd2,color:#3b3b3b
 ```
 
 ## 🚀 Advanced Patterns: Enterprise-Grade Status Codes
@@ -756,14 +756,14 @@ graph TB
     O -->|Multi| R[207 Multi-Status]
     O -->|Async| S[202 Accepted]
     
-    style A fill:#e1f5fe
-    style P fill:#c8e6c9
-    style Q fill:#c8e6c9
-    style R fill:#c8e6c9
-    style S fill:#c8e6c9
-    style D fill:#ffcdd2
-    style F fill:#ffccbc
-    style H fill:#ffccbc
+    style A fill:#e1f5fe,color:#3b3b3b
+    style P fill:#c8e6c9,color:#3b3b3b
+    style Q fill:#c8e6c9,color:#3b3b3b
+    style R fill:#c8e6c9,color:#3b3b3b
+    style S fill:#c8e6c9,color:#3b3b3b
+    style D fill:#ffcdd2,color:#3b3b3b
+    style F fill:#ffccbc,color:#3b3b3b
+    style H fill:#ffccbc,color:#3b3b3b
 ```
 
 ## 🎓 Complete Status Code Reference
