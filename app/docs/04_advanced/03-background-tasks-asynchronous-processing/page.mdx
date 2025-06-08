@@ -14,15 +14,21 @@ Imagine your API is a popular restaurant. A customer places an order (an HTTP re
 
 ```mermaid
 graph TD
-    subgraph "Inefficient Kitchen (Synchronous)"
-        A[Customer places order] --> B{Head Chef cooks meal};
+    subgraph "Inefficient Kitchen<br>(Synchronous)"
+        gap1[ ]
+        style gap1 fill:none,stroke:none
+        gap1 ~~~ A[Customer places order]
+        A --> B{Head Chef cooks meal};
         B --> C[Customer waits...];
         C --> D[Meal is served];
         D --> E[Chef takes next order];
     end
 
+    
     subgraph "Efficient Kitchen (Asynchronous)"
-        F[Customer places order] --> G{Head Chef takes order};
+        gap2[ ]
+        style gap2 fill:none,stroke:none
+        gap2 ~~~ F[Customer places order] --> G{Head Chef takes order};
         G --> H[Chef gives order to Prep Cook];
         G --> I[Chef immediately takes next order];
         H --> J[Prep Cook prepares meal];
