@@ -17,6 +17,7 @@ export default async function DocsLayout({ children }: { children: React.ReactNo
         // banner={banner}
         pageMap={await getPageMap()}
         docsRepositoryBase="https://github.com/ridwanspace/restful-fastapi-guideline/tree/main"
+        editLink={'Edit this page on GitHub'}
       >
         {children}
       </Layout>
