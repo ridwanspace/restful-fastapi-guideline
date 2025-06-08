@@ -322,7 +322,7 @@ Now that your restaurant is ready, you can:
 ---
 
 
-Before, start transforming, you can refer to @app/docs/03_intermediate/08-best-practices/page.mdx to understand the same structure and format.
+Before start transforming, you can refer to @app/docs/03_intermediate/08-best-practices/page.mdx to understand the same structure and format for the consistency.
 
 **Now after you have understood the structure and format, transform and modify the 
 <provided_documentation>
