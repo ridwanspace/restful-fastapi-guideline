@@ -11,7 +11,7 @@ Think of web standards as the universal laws of physics for the digital world. J
 Not all laws are created equal. Some are fundamental principles, while others are specific regulations. Understanding this hierarchy helps you prioritize what to learn and implement.
 
 ```mermaid
-graph TD
+graph LR
     A[🌐 **Universal Web Laws**<br/>The fundamental principles of the internet] --> B[📡 **HTTP Protocols**<br/>The language of web communication]
     A --> C[🔒 **Security Mandates**<br/>The laws of digital protection]
     A --> D[📋 **API Blueprints**<br/>The architectural plans for APIs]
@@ -28,10 +28,10 @@ graph TD
     D --> D2[**JSON Schema**<br/>The material specifications for your data]
     D --> D3[**REST Guidelines**<br/>The architectural style guide]
 
-    style A fill:#e1f5fe
-    style B fill:#f3e5f5
-    style C fill:#ffebee
-    style D fill:#e8f5e8
+    style A fill:#e1f5fe,color:#3b3b3b
+    style B fill:#f3e5f5,color:#3b3b3b
+    style C fill:#ffebee,color:#3b3b3b
+    style D fill:#e8f5e8,color:#3b3b3b
 ```
 
 ---
@@ -208,10 +208,10 @@ This section covers the absolute fundamentals. Mastering these concepts is non-n
       B --> C[**Level 2: The City**<br/>Using proper street signs (HTTP verbs & status codes)]
       C --> D[**Level 3: The Metropolis**<br/>Providing a GPS (Hypermedia/HATEOAS) for navigation]
 
-      style A fill:#ffebee
-      style B fill:#fff3e0
-      style C fill:#e8f5e8
-      style D fill:#e1f5fe
+      style A fill:#ffebee,color:#3b3b3b
+      style B fill:#fff3e0,color:#3b3b3b
+      style C fill:#e8f5e8,color:#3b3b3b
+      style D fill:#e1f5fe,color:#3b3b3b
   ```
 - **💡 Why it Matters**: It provides a roadmap for improving your API's design. Most modern, high-quality REST APIs operate at Level 2. Level 3 (HATEOAS) is powerful but adds complexity that isn't always necessary. FastAPI excels at building Level 2 APIs.
 
