@@ -126,15 +126,15 @@ export default function LandingPage() {
                   icon: "⚡", 
                   level: "Advanced",
                   color: "bg-orange-500/20 border-orange-500/30 text-orange-300",
-                  href: "/docs/04_advance"
+                  href: "/docs/04_advanced"
                 },
                 { 
                   title: "🏢 Enterprise", 
-                  description: "WebSockets, microservices, background tasks, idempotency, and cloud-native deployment patterns.", 
-                  icon: "🌟", 
+                  description: "WebSockets, microservices, background tasks, idempotency, and cloud-native deployment patterns.",
+                  icon: "🌟",
                   level: "Expert",
                   color: "bg-purple-500/20 border-purple-500/30 text-purple-300",
-                  href: "/docs/05_enterprise"
+                  href: "/docs/04_advanced"
                 },
               ].map((stage) => (
                 <div key={stage.title} className="bg-slate-700/50 p-6 rounded-lg shadow-lg hover:shadow-sky-500/20 transition-all duration-300 border border-slate-600/50 hover:border-sky-500/30">
@@ -311,7 +311,7 @@ async def search_products(
 async def websocket_endpoint(websocket: WebSocket):
     await websocket.accept()
     # Real-time communication...`,
-                  href: "/docs/05_enterprise/01-real-time-communication-websockets",
+                  href: "/docs/04_advanced/01-real-time-communication-websockets",
                   level: "Enterprise"
                 },
                 { 
@@ -331,7 +331,7 @@ async def security_middleware(request: Request, call_next):
 async def process_data(background_tasks: BackgroundTasks):
     background_tasks.add_task(process_heavy_task)
     return {"status": "processing"}`,
-                  href: "/docs/05_enterprise/03-background-tasks-asynchronous-processing",
+                  href: "/docs/04_advanced/03-background-tasks-asynchronous-processing",
                   level: "Enterprise"
                 },
                 { 
@@ -342,7 +342,7 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install -r requirements.txt
 # Optimized for production...`,
-                  href: "/docs/05_enterprise/07-containerization-orchestration-production",
+                  href: "/docs/04_advanced/07-containerization-orchestration-production",
                   level: "Enterprise"
                 },
               ].map((example) => (
@@ -418,7 +418,7 @@ RUN pip install -r requirements.txt
             <Link href="/docs/01_getting-started" className="hover:text-sky-400 transition-colors" prefetch={false}>
               Get Started
             </Link>
-            <Link href="/docs/05_enterprise" className="hover:text-sky-400 transition-colors" prefetch={false}>
+            <Link href="/docs/04_advanced" className="hover:text-sky-400 transition-colors" prefetch={false}>
               Enterprise Guide
             </Link>
           </div>
