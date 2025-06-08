@@ -85,7 +85,7 @@ An API Gateway is a server that acts as a reverse proxy to accept all applicatio
 
 ```mermaid
 graph LR
-    A[Client<br/>(Citizen)] --> B{API Gateway<br/>(Grand Central Station)};
+    A["Client<br>(Citizen)"] --> B{"API Gateway<br>(Grand Central Station)"};
     
     B -->|/users/*| C[User Service];
     B -->|/orders/*| D[Order Service];
