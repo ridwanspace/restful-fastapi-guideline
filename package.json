@@ -6,13 +6,15 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "postbuild": "pagefind --site .next/server/app --output-path public/_pagefind"
   },
   "dependencies": {
     "@theguild/remark-mermaid": "^0.3.0",
     "next": "15.3.3",
     "nextra": "^4.2.17",
     "nextra-theme-docs": "^4.2.17",
+    "pagefind": "^1.3.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },
