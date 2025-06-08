@@ -30,9 +30,9 @@ const config = {
     </>
   ),
   project: {
-    link: 'https://github.com/ridwanfathin/restful-fastapi-guideline',
+    link: 'https://github.com/ridwanspace/restful-fastapi-guideline',
   },
-  docsRepositoryBase: 'https://github.com/ridwanfathin/restful-fastapi-guideline/tree/main',
+  docsRepositoryBase: 'https://github.com/ridwanspace/restful-fastapi-guideline/tree/main',
   footer: {
     text: (
       <span>
