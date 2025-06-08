@@ -207,8 +207,10 @@ graph TD
         P[Port 8000]
     end
 
-    subgraph "Docker Network (The Neighborhood)"
-        W[Web App<br/>🏙️ FastAPI Building]
+    subgraph "Docker Network<br>(The Neighborhood)"
+        gap1[ ]
+        style gap1 fill:none,stroke:none
+        gap1 ~~~ W[Web App<br/>🏙️ FastAPI Building]
         DB[Database<br/>📦 PostgreSQL Warehouse]
         C[Cache<br/>📫 Redis Post Office]
     end
