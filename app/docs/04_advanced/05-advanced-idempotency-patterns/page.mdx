@@ -34,22 +34,24 @@ This diagram shows how a server uses an idempotency key to prevent duplicate pro
 sequenceDiagram
     participant Client as 📱 Client App
     participant Server as ☁️ FastAPI Server
-    participant Store as 🗄️ Idempotency Store (e.g., Redis)
+    participant Store as 🗄️ Idempotency Store
 
-    Client->>+Client: 1. Generate unique Idempotency-Key (e.g., UUID)
-    Client->>+Server: 2. Send POST request with Idempotency-Key header
+    note over Client: 1. Generate unique Idempotency-Key
+    Client->>Server: 2. Send POST request with Idempotency-Key
 
-    Server->>+Store: 3. Check if key exists
-    alt Key is NEW
-        Store-->>-Server: 4a. Key not found
-        Server->>+Store: 5a. Store key with "processing" status
-        Server->>Server: 6a. Process the request (e.g., create resource)
-        Server->>+Store: 7a. Update key with final response (e.g., 201 Created)
-        Store-->>-Server: 
-        Server-->>-Client: 8a. Return the successful response
-    else Key is SEEN
-        Store-->>-Server: 4b. Key found with stored response
-        Server-->>-Client: 5b. Return the stored response immediately (no processing)
+    alt First Request (Key is New)
+        Server->>Store: 3a. Check for key (not found)
+        Store-->>Server: 4a. Key is new
+        Server->>Store: 5a. Store key as "processing"
+        Store-->>Server: 6a. Acknowledged
+        Server->>Server: 7a. Process request...
+        Server->>Store: 8a. Update key with final response
+        Store-->>Server: 9a. Acknowledged
+        Server-->>Client: 10a. Return new response
+    else Subsequent Request (Key is Seen)
+        Server->>Store: 3b. Check for key (found)
+        Store-->>Server: 4b. Return stored response
+        Server-->>Client: 5b. Return stored response immediately
     end
 ```
 
