@@ -9,7 +9,7 @@ You can contribute in many ways:
 ## Types of Contributions
 
 ### 📝 Report Bugs
-Report bugs at [https://github.com/ridwanspace/restful-fastapi-guideline/issues](https://github.com/ridwanspace/restful-fastapi-guideline/issues).
+Report bugs at [https://github.com/ridwanspace/restful-fastapi-guidelines/issues](https://github.com/ridwanspace/restful-fastapi-guidelines/issues).
 
 If you are reporting a bug, please include:
 - Your operating system name and version.
@@ -17,7 +17,7 @@ If you are reporting a bug, please include:
 - Detailed steps to reproduce the bug.
 
 ### 💡 Suggest Enhancements
-Suggest enhancements at [https://github.com/ridwanspace/restful-fastapi-guideline/issues](https://github.com/ridwanspace/restful-fastapi-guideline/issues).
+Suggest enhancements at [https://github.com/ridwanspace/restful-fastapi-guidelines/issues](https://github.com/ridwanspace/restful-fastapi-guidelines/issues).
 
 If you are suggesting an enhancement, please include:
 - A clear and detailed explanation of the proposed enhancement.
@@ -48,7 +48,7 @@ Before you submit a pull request, check that it meets these guidelines:
 
 ## Get Started!
 
-Ready to contribute? Head over to the [issues page](https://github.com/ridwanspace/restful-fastapi-guideline/issues) to find a task that interests you.
+Ready to contribute? Head over to the [issues page](https://github.com/ridwanspace/restful-fastapi-guidelines/issues) to find a task that interests you.
 
 ## Code of Conduct
 

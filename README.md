@@ -111,7 +111,7 @@ graph TD
 
 ### 1. Clone the Repository
 ```bash
-git clone https://github.com/ridwanspace/restful-fastapi-guideline.git
+git clone https://github.com/ridwanspace/restful-fastapi-guidelines.git
 cd restful-fastapi-guideline
 ```
 

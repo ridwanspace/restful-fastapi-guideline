@@ -1,4 +1,4 @@
-import { Layout, Navbar, Footer } from 'nextra-theme-docs'
+import { Layout, Navbar } from 'nextra-theme-docs'
 import { getPageMap } from 'nextra/page-map'
 import 'nextra-theme-docs/style.css'
 
@@ -40,7 +40,7 @@ export default async function DocsLayout({ children }: { children: React.ReactNo
       <Layout
         navbar={navbar}
         pageMap={await getPageMap()}
-        docsRepositoryBase="https://github.com/ridwanspace/restful-fastapi-guideline/tree/main"
+        docsRepositoryBase="https://github.com/ridwanspace/restful-fastapi-guidelines/tree/main"
         editLink={'Edit this page on GitHub'}
       >
         {children}
