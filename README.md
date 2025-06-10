@@ -40,7 +40,7 @@ This project is a complete learning journey for building production-ready RESTfu
 
 This guide is deployed on Vercel and is publicly accessible.
 
-**[🚀 Access the Live Documentation](https://restful-fastapi-guideline.vercel.app/)**
+**[🚀 Access the Live Documentation](https://restful-fastapi-guidelines.vercel.app/)**
 ## 🎯 What You'll Learn
 
 ### 🌟 **Progressive Learning Journey**

@@ -33,7 +33,7 @@ const navbar = (
     // ... Your additional navbar options
   />
 )
-const footer = <Footer>MIT {new Date().getFullYear()} © Nextra.</Footer> 
+
 export default async function DocsLayout({ children }: { children: React.ReactNode }) {
   return (
     <>
