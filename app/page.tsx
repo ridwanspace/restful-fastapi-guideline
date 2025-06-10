@@ -1,6 +1,9 @@
+"use client";
 import Link from 'next/link';
+import { useState } from 'react';
 
 export default function LandingPage() {
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   return (
     <div className="flex flex-col min-h-screen bg-gradient-to-br from-slate-900 to-slate-800 text-white">
       <header className="sticky top-0 z-50 w-full border-b border-slate-700 bg-slate-900/50 backdrop-blur-lg">
@@ -22,39 +25,106 @@ export default function LandingPage() {
               <path d="M2 17l10 5 10-5" />
               <path d="M2 12l10 5 10-5" />
             </svg>
-            <span className="text-xl font-bold">FastAPI Guide</span>
+            <span className="text-xl font-bold">RESTful FastAPI Guidelines</span>
           </Link>
-          <nav className="hidden items-center gap-6 text-sm font-medium md:flex">
-            <Link href="#learning-path" className="hover:text-sky-400 transition-colors" prefetch={false}>
-              Learning Path
-            </Link>
-            <Link href="#use-cases" className="hover:text-sky-400 transition-colors" prefetch={false}>
-              Use Cases
-            </Link>
-            <Link href="/docs" className="hover:text-sky-400 transition-colors" prefetch={false}>
-              Documentation
-            </Link>
-            <Link href="#examples" className="hover:text-sky-400 transition-colors" prefetch={false}>
-              Examples
-            </Link>
+          {/* Right side items */}
+          <div className="flex items-center gap-4">
+            {/* Desktop Navigation */}
+            <nav className="hidden items-center gap-6 text-sm font-medium md:flex">
+              <Link href="#learning-path" className="hover:text-sky-400 transition-colors" prefetch={false}>
+                Learning Path
+              </Link>
+              <Link href="#use-cases" className="hover:text-sky-400 transition-colors" prefetch={false}>
+                Use Cases
+              </Link>
+              <Link href="/docs" className="hover:text-sky-400 transition-colors" prefetch={false}>
+                Documentation
+              </Link>
+              <Link href="#examples" className="hover:text-sky-400 transition-colors" prefetch={false}>
+                Examples
+              </Link>
+              <Link
+                href="https://github.com/ridwanspace/restful-fastapi-guideline"
+                className="hover:text-sky-400 transition-colors flex items-center gap-2"
+                prefetch={false}
+                target="_blank"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"></path></svg>
+                <span>GitHub</span>
+              </Link>
+            </nav>
+
+            {/* Start Learning Button */}
             <Link
-              href="https://github.com/ridwanspace/restful-fastapi-guideline"
-              className="hover:text-sky-400 transition-colors flex items-center gap-2"
+              href="/docs/01_getting-started"
+              className="hidden md:inline-flex h-9 items-center justify-center rounded-md bg-sky-500 px-4 py-2 text-sm font-medium text-white shadow transition-colors hover:bg-sky-600 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-sky-700 disabled:pointer-events-none disabled:opacity-50"
               prefetch={false}
-              target="_blank"
             >
-              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"></path></svg>
-              <span>GitHub</span>
+              Start Learning
             </Link>
-          </nav>
-          <Link
-            href="/docs/01_getting-started"
-            className="inline-flex h-9 items-center justify-center rounded-md bg-sky-500 px-4 py-2 text-sm font-medium text-white shadow transition-colors hover:bg-sky-600 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-sky-700 disabled:pointer-events-none disabled:opacity-50"
-            prefetch={false}
-          >
-            Start Learning
-          </Link>
+
+            {/* Hamburger Menu Button for Mobile */}
+            <div className="md:hidden">
+              <button
+                onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+                className="inline-flex items-center justify-center p-2 rounded-md text-slate-400 hover:text-white hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-white"
+                aria-controls="mobile-menu"
+                aria-expanded={isMobileMenuOpen}
+              >
+                <span className="sr-only">Open main menu</span>
+                {isMobileMenuOpen ? (
+                  <svg className="block h-6 w-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                ) : (
+                  <svg className="block h-6 w-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16m-7 6h7" />
+                  </svg>
+                )}
+              </button>
+            </div>
+          </div>
         </div>
+
+        {/* Mobile Menu */}
+        {isMobileMenuOpen && (
+          <div className="md:hidden bg-slate-900 border-t border-slate-700" id="mobile-menu">
+            <div className="px-2 pt-2 pb-3 space-y-1 sm:px-3">
+              <Link href="#learning-path" className="text-slate-300 hover:bg-slate-700 hover:text-white block px-3 py-2 rounded-md text-base font-medium" prefetch={false} onClick={() => setIsMobileMenuOpen(false)}>
+                Learning Path
+              </Link>
+              <Link href="#use-cases" className="text-slate-300 hover:bg-slate-700 hover:text-white block px-3 py-2 rounded-md text-base font-medium" prefetch={false} onClick={() => setIsMobileMenuOpen(false)}>
+                Use Cases
+              </Link>
+              <Link href="/docs" className="text-slate-300 hover:bg-slate-700 hover:text-white block px-3 py-2 rounded-md text-base font-medium" prefetch={false} onClick={() => setIsMobileMenuOpen(false)}>
+                Documentation
+              </Link>
+              <Link href="#examples" className="text-slate-300 hover:bg-slate-700 hover:text-white block px-3 py-2 rounded-md text-base font-medium" prefetch={false} onClick={() => setIsMobileMenuOpen(false)}>
+                Examples
+              </Link>
+              <Link
+                href="https://github.com/ridwanspace/restful-fastapi-guideline"
+                className="text-slate-300 hover:bg-slate-700 hover:text-white block px-3 py-2 rounded-md text-base font-medium"
+                prefetch={false}
+                target="_blank"
+                onClick={() => setIsMobileMenuOpen(false)}
+              >
+                <div className="flex items-center gap-2">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"></path></svg>
+                  <span>GitHub</span>
+                </div>
+              </Link>
+              <Link
+                href="/docs/01_getting-started"
+                className="bg-sky-500 text-white block px-3 py-2 rounded-md text-base font-medium text-center hover:bg-sky-600 mt-2"
+                prefetch={false}
+                onClick={() => setIsMobileMenuOpen(false)}
+              >
+                Start Learning
+              </Link>
+            </div>
+          </div>
+        )}
       </header>
 
       <main className="flex-1">
@@ -417,7 +487,7 @@ RUN pip install -r requirements.txt
 
       <footer className="py-8 border-t border-slate-700 bg-slate-900">
         <div className="container mx-auto px-4 md:px-6 flex flex-col md:flex-row items-center justify-between text-sm text-slate-400">
-          <p>&copy; {new Date().getFullYear()} FastAPI RESTful Guidelines. Built with ❤️ for developers.</p>
+          <p>&copy; {new Date().getFullYear()} RESTful FastAPI Guidelines. Built with ❤️ for developers.</p>
           <div className="flex gap-4 mt-4 md:mt-0 items-center">
             <Link href="/docs" className="hover:text-sky-400 transition-colors" prefetch={false}>
               Documentation
