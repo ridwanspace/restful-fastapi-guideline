@@ -326,7 +326,7 @@ Before start transforming, you can refer to @app/docs/03_intermediate/08-best-pr
 
 **Now after you have understood the structure and format, transform and modify the 
 <provided_documentation>
-@app/docs/04_advanced/04-fastapi-microservices-architecture/page.mdx
+@app/docs/04_advanced/05-advanced-idempotency-patterns/page.mdx
 </provided_documentation>
 
 following these Vue.js excellence standards. Make it progressive, accessible, and comprehensive for developers of all levels.**
