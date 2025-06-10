@@ -326,7 +326,7 @@ Before start transforming, you can refer to @app/docs/03_intermediate/08-best-pr
 
 **Now after you have understood the structure and format, transform and modify the 
 <provided_documentation>
-@app/docs/04_advanced/06-serverless-deployment/page.mdx
+@app/docs/04_advanced/06-serverless-deployment/page.mdx, please add examples/hands on for GCP Cloud run, AWS Fargate, and Azure Container Apps to make it more comprehensive.
 </provided_documentation>
 
 following these Vue.js excellence standards. Make it progressive, accessible, and comprehensive for developers of all levels.**
